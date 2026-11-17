@@ -265,11 +265,70 @@ function vRes(){
   `;
 }
 
-window.addRes=()=>{const u=$('#u').value.trim().toLowerCase(),p=$('#p').value,n=$('#n').value.trim(),un=$('#un').value;
-  if(!/^[a-z0-9._-]+$/.test(u)||!n||p.length<6)return alert('أكمل الحقول: اسم مستخدم إنجليزي وكلمة مرور 6 أحرف على الأقل');
-  wr(async()=>{const sec=initializeApp(CFG,'sec'+uidg()),sa=getAuth(sec);
-    const c=await createUserWithEmailAndPassword(sa,u+DOMAIN,p);await signOut(sa);
-    await setDoc(doc(db,'users',c.user.uid),{name:n,unit:un,username:u,role:'user'});alert('تم إنشاء الحساب')})};
+window.addRes=()=>{
+  const unit=$('#un').value;
+  const residentType=$('#rt').value;
+
+  const ownerName=$('#on').value.trim();
+  const ownerPhone=$('#op').value.trim();
+
+  const tenantName=$('#tn').value.trim();
+  const tenantPhone=$('#tp').value.trim();
+
+  const username=$('#u').value.trim().toLowerCase();
+  const password=$('#p').value;
+
+  if(!ownerName||!ownerPhone||!username||password.length<6){
+    return alert('أدخل اسم المالك ورقم هاتف المالك واسم المستخدم وكلمة مرور لا تقل عن 6 أحرف');
+  }
+
+  if(residentType==='tenant'&&(!tenantName||!tenantPhone)){
+    return alert('عند اختيار مستأجر يجب إدخال اسم المستأجر ورقم هاتفه');
+  }
+
+  if(!/^[a-z0-9._-]+$/.test(username)){
+    return alert('اسم المستخدم يجب أن يحتوي على حروف إنجليزية أو أرقام فقط');
+  }
+
+  wr(async()=>{
+    const sec=initializeApp(CFG,'sec'+uidg());
+    const sa=getAuth(sec);
+
+    const c=await createUserWithEmailAndPassword(
+      sa,
+      username+DOMAIN,
+      password
+    );
+
+    await signOut(sa);
+
+    const displayName=
+      residentType==='tenant'
+        ? tenantName
+        : ownerName;
+
+    await setDoc(
+      doc(db,'users',c.user.uid),
+      {
+        name:displayName,
+        unit:unit,
+        username:username,
+        role:'user',
+
+        residentType:residentType,
+
+        ownerName:ownerName,
+        ownerPhone:ownerPhone,
+
+        tenantName:tenantName,
+        tenantPhone:tenantPhone
+      }
+    );
+
+    alert('تم إنشاء حساب الساكن بنجاح');
+  });
+};
+
 
 function vMe(){
   $('#v').innerHTML=`<div class="card"><b>تفعيل الإشعارات</b><div class="mu">على الآيفون: أضف التطبيق للشاشة الرئيسية أولًا.</div><button onclick="enablePush()">🔔 تفعيل</button></div><div class="card"><b>تغيير كلمة المرور</b><input id="op" type="password" placeholder="الحالية"><input id="np" type="password" placeholder="الجديدة (6 أحرف على الأقل)"><button onclick="chPw()">تغيير</button></div>`;
