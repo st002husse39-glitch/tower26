@@ -339,6 +339,83 @@ window.addRes=()=>{
   });
 };
 
+window.editResident=async(id)=>{
+  const user=S.users.find(x=>x.id===id);
+
+  if(!user){
+    return alert('لم يتم العثور على بيانات الساكن');
+  }
+
+  const residentType=prompt(
+    'نوع الساكن: اكتب owner للمالك أو tenant للمستأجر',
+    user.residentType||'owner'
+  );
+
+  if(residentType!=='owner'&&residentType!=='tenant'){
+    return alert('اكتب owner أو tenant فقط');
+  }
+
+  const ownerName=prompt(
+    'اسم المالك',
+    user.ownerName||''
+  );
+
+  if(ownerName===null)return;
+
+  const ownerPhone=prompt(
+    'رقم هاتف المالك',
+    user.ownerPhone||''
+  );
+
+  if(ownerPhone===null)return;
+
+  const tenantName=prompt(
+    'اسم المستأجر',
+    user.tenantName||''
+  );
+
+  if(tenantName===null)return;
+
+  const tenantPhone=prompt(
+    'رقم هاتف المستأجر',
+    user.tenantPhone||''
+  );
+
+  if(tenantPhone===null)return;
+
+  if(!ownerName.trim()||!ownerPhone.trim()){
+    return alert('يجب إدخال اسم المالك ورقم هاتف المالك');
+  }
+
+  if(
+    residentType==='tenant'&&
+    (!tenantName.trim()||!tenantPhone.trim())
+  ){
+    return alert('يجب إدخال اسم المستأجر ورقم هاتفه');
+  }
+
+  try{
+    await updateDoc(
+      doc(db,'users',id),
+      {
+        name:residentType==='tenant'
+          ?tenantName.trim()
+          :ownerName.trim(),
+
+        residentType:residentType,
+        ownerName:ownerName.trim(),
+        ownerPhone:ownerPhone.trim(),
+        tenantName:tenantName.trim(),
+        tenantPhone:tenantPhone.trim()
+      }
+    );
+
+    alert('تم تعديل بيانات الساكن بنجاح');
+    draw();
+  }catch(e){
+    err(e);
+  }
+};
 
 function vMe(){
   $('#v').innerHTML=`<div class="card"><b>تفعيل الإشعارات</b><div class="mu">على الآيفون: أضف التطبيق للشاشة الرئيسية أولًا.</div><button onclick="enablePush()">🔔 تفعيل</button></div><div class="card"><b>تغيير كلمة المرور</b><input id="op" type="password" placeholder="الحالية"><input id="np" type="password" placeholder="الجديدة (6 أحرف على الأقل)"><button onclick="chPw()">تغيير</button></div>`;
