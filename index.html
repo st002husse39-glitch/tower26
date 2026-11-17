@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>برج 26 - أبراج الصفوة</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#6b7480;--pr:#0f766e;--bd:#e3e6ea;--ok:#15803d;--bad:#b91c1c;--wn:#b45309}
+@media (prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2026;--tx:#eef0f3;--mu:#9aa4b0;--pr:#2dd4bf;--bd:#2b323a;--ok:#4ade80;--bad:#f87171;--wn:#fbbf24}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;max-width:640px;margin-inline:auto;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 90px}
+h1{font-size:19px;margin:4px 0}h2{font-size:16px;margin:14px 0 6px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:8px 0}
+input,select,textarea,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px;width:100%;margin:4px 0}
+button{background:var(--pr);color:#fff;border:0;font-weight:600;cursor:pointer}
+button.s{background:var(--bg);color:var(--tx);border:1px solid var(--bd);width:auto;padding:6px 12px;font-weight:400;margin:2px}
+button.d{background:none;color:var(--bad);width:auto;padding:4px 8px}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.mu{color:var(--mu);font-size:13px}.ok{color:var(--ok)}.bad{color:var(--bad)}.wn{color:var(--wn)}
+nav{position:fixed;bottom:0;inset-inline:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));overflow-x:auto;z-index:5}
+nav button{background:none;color:var(--mu);padding:8px 10px;font-size:14px;white-space:nowrap;flex:1;margin:0;position:relative}
+nav button.on{color:var(--pr);font-weight:700}
+.dot{position:absolute;top:2px;inset-inline-end:6px;background:var(--bad);color:#fff;border-radius:9px;font-size:11px;padding:0 5px}
+.bar{height:8px;background:var(--bd);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pr)}
+#ov{position:fixed;inset:0;background:#000d;display:none;align-items:center;justify-content:center;z-index:9}#ov img{max-width:95%;max-height:90%}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}.g b{font-size:22px;display:block}
+</style>
+</head>
+<body>
+<div id="app">جارٍ التحميل…</div>
+<div id="ov" onclick="this.style.display='none'"><img id="oi"></div>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword,updatePassword,EmailAuthProvider,reauthenticateWithCredential} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,writeBatch,query,where,arrayUnion} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getMessaging,getToken} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
+
+const CFG={apiKey:"AIzaSyAR1WLDgsyxZmClQhXwWzyhk-YJDQvCV3Q",authDomain:"safwa-towers-b26.firebaseapp.com",projectId:"safwa-towers-b26",storageBucket:"safwa-towers-b26.firebasestorage.app",messagingSenderId:"39177856586",appId:"1:39177856586:web:40a41d72bc0947caa128b3"};
+const VAPID_KEY="";
+const ADMIN_EMAIL="admin@burg26.local";
+const DOMAIN="@burg26.local";
+
+const app0=initializeApp(CFG),auth=getAuth(app0),db=getFirestore(app0);
+const $=s=>document.querySelector(s),root=$('#app');
+const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uidg=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const today=()=>new Date().toLocaleDateString('ar-EG');
+const month0=()=>new Date().toISOString().slice(0,7);
+const UNITS=[...Array.from({length:8},(_,i)=>({id:'S'+(i+1),label:'محل '+(i+1),t:'c'})),
+ ...Array.from({length:88},(_,i)=>{const f=Math.floor(i/8)+1,a=i%8+1;return{id:f+'-'+a,label:`دور ${f} شقة ${a}`,t:'r'}})];
+const ulabel=id=>(UNITS.find(u=>u.id===id)||{label:id||'—'}).label;
+const ST={unpaid:['غير مدفوع','bad'],pending:['قيد المراجعة','wn'],paid:['مدفوع','ok']};
+const RS={new:'جديد',prog:'قيد التنفيذ',done:'تم'};
+
+let me=null,admin=false,tab='ann',M=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],set:{}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
+const err=e=>alert('تعذر تنفيذ العملية: '+(e.code||e.message));
+const wr=async f=>{try{await f()}catch(e){err(e)}};
+
+function notify(t,b){try{if(Notification.permission==='granted')new Notification(t,{body:b})}catch(e){}}
+function sub(key,q,onNew){
+  unsubs.push(onSnapshot(q,s=>{
+    S[key]=s.docs.map(d=>({id:d.id,...d.data()}));
+    if(ready[key]&&onNew)s.docChanges().forEach(c=>onNew(c));
+    ready[key]=1;draw();
+  },e=>console.warn(key,e.code)));
+}
+function startData(){
+  const c=n=>collection(db,n);
+  sub('ann',c('announcements'),c=>{if(c.type==='added'&&!admin)notify('📢 '+c.doc.data().title,c.doc.data().body)});
+  sub('polls',c('polls'));sub('votes',c('votes'));
+  unsubs.push(onSnapshot(doc(db,'settings','pay'),s=>{S.set=s.data()||{};draw()},()=>{}));
+  if(admin){sub('dues',c('dues'),c=>{if(c.doc.data().status==='pending'&&c.type!=='removed')notify('🧾 إيصال جديد',ulabel(c.doc.data().unit))});
+    sub('req',c('requests'),c=>{if(c.type==='added')notify('🔧 طلب صيانة',c.doc.data().title)});sub('users',c('users'))}
+  else{sub('dues',query(c('dues'),where('unit','==',me.unit)),c=>{if(c.type==='modified'){const d=c.doc.data();notify('رسوم '+d.month,ST[d.status][0])}});
+    sub('req',query(c('requests'),where('uid','==',auth.currentUser.uid)),c=>{if(c.type==='modified')notify('🔧 تحديث الطلب',c.doc.data().title+': '+RS[c.doc.data().status])})}
+}
+onAuthStateChanged(auth,async u=>{
+  unsubs.forEach(f=>f());unsubs=[];ready={};me=null;
+  if(!u)return loginView();
+  admin=u.email===ADMIN_EMAIL;
+  unsubs.push(onSnapshot(doc(db,'users',u.uid),async s=>{
+    if(!s.exists()){
+      if(admin){await setDoc(doc(db,'users',u.uid),{name:'مدير العمارة',role:'admin',unit:'',username:'admin'},{merge:true});return}
+      root.innerHTML='<div class="card">حسابك غير مفعّل. تواصل مع إدارة العمارة.</div><button onclick="out()">خروج</button>';return}
+    const first=!me;me=s.data();if(first){startData()}draw();
+  },()=>{}));
+});
+function loginView(){root.innerHTML=`<h1>🏢 برج 26 — أبراج الصفوة</h1><div class="card"><input id="u" placeholder="اسم المستخدم" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة المرور" autocomplete="current-password"><button onclick="login()">دخول</button><div id="e" class="bad"></div></div>`}
+window.login=async()=>{try{await signInWithEmailAndPassword(auth,$('#u').value.trim().toLowerCase()+DOMAIN,$('#p').value)}catch(e){$('#e').textContent='بيانات الدخول غير صحيحة'}};
+window.out=()=>signOut(auth);
+
+function draw(){
+  if(!me)return;
+  const nAnn=S.ann.filter(a=>a.ts>seen).length;
+  const tabs=admin?[['ann','الإعلانات'],['dues','الرسوم'],['req','الطلبات'],['vote','التصويت'],['res','السكان'],['me','حسابي']]:[['ann','الإعلانات'],['dues','رسومي'],['req','الصيانة'],['vote','التصويت'],['me','حسابي']];
+  root.innerHTML=`<div class="row"><h1>🏢 برج 26</h1><button class="s" onclick="out()">خروج</button></div><div class="mu">${esc(me.name)} — ${admin?'مدير':ulabel(me.unit)}</div><div id="v"></div><nav>${tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="go('${t[0]}')">${t[1]}${t[0]==='ann'&&nAnn?`<span class="dot">${nAnn}</span>`:''}</button>`).join('')}</nav>`;
+  ({ann:vAnn,dues:admin?vDuesA:vDues,req:vReq,vote:vVote,res:vRes,me:vMe}[tab]||vAnn)();
+}
+window.go=t=>{tab=t;if(t==='ann'){seen=Date.now();localStorage.setItem('seen',seen)}draw()};
+window.del=(c,id)=>{if(confirm('تأكيد الحذف؟'))wr(()=>deleteDoc(doc(db,c,id)))};
+
+function vAnn(){
+  const a=[...S.ann].sort((x,y)=>y.ts-x.ts);
+  $('#v').innerHTML=(admin?`<div class="card"><input id="t" placeholder="عنوان الإعلان"><textarea id="b" rows="3" placeholder="النص"></textarea><button onclick="addAnn()">نشر</button></div>`:'')+'<h2>الإعلانات</h2>'+(a.map(x=>`<div class="card"><div class="row"><b>${esc(x.title)}</b>${admin?`<button class="d" onclick="del('announcements','${x.id}')">حذف</button>`:''}</div><div>${esc(x.body).replace(/\n/g,'<br>')}</div><div class="mu">${esc(x.date)}</div></div>`).join('')||'<div class="mu">لا توجد إعلانات</div>');
+}
+window.addAnn=()=>{const t=$('#t').value.trim();if(t)wr(()=>setDoc(doc(db,'announcements',uidg()),{title:t,body:$('#b').value,date:today(),ts:Date.now()}))};
+
+function vDues(){
+  const d=[...S.dues].sort((a,b)=>b.month.localeCompare(a.month)),owe=d.filter(x=>x.status==='unpaid').reduce((s,x)=>s+(+x.amount||0),0);
+  $('#v').innerHTML=`<div class="card"><div class="mu">المتبقي عليك</div><h1 class="${owe?'bad':'ok'}">${owe} جنيه</h1></div>${S.set.text?`<div class="card"><b>طريقة السداد</b><div>${esc(S.set.text).replace(/\n/g,'<br>')}</div></div>`:''}`+(d.map(x=>`<div class="card"><div class="row"><span>${esc(x.month)} · ${esc(x.amount)} جنيه</span><b class="${ST[x.status][1]}">${ST[x.status][0]}</b></div>${x.status==='unpaid'?`<button onclick="pick('${x.id}')">📷 رفع إيصال التحويل</button>`:''}</div>`).join('')||'<div class="mu">لا توجد رسوم</div>')+'<input id="f" type="file" accept="image/*" hidden>';
+}
+let pid=null;
+window.pick=id=>{pid=id;const f=$('#f');f.value='';f.onchange=()=>f.files[0]&&upload(f.files[0]);f.click()};
+function upload(file){
+  const im=new Image();im.onload=()=>{const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    const r=c.toDataURL('image/jpeg',.6);if(r.length>800000)return alert('الصورة كبيرة، جرّب صورة أخرى');
+    wr(()=>updateDoc(doc(db,'dues',pid),{status:'pending',receipt:r,note:''})).then(()=>alert('تم رفع الإيصال وسيُراجع قريبًا'))};
+  im.src=URL.createObjectURL(file);
+}
+function vDuesA(){
+  const l=S.dues.filter(x=>x.month===M),n=s=>l.filter(x=>x.status===s).length;
+  const rows=[...l].sort((a,b)=>(b.status==='pending')-(a.status==='pending')||a.unit.localeCompare(b.unit,'en',{numeric:true}));
+  $('#v').innerHTML=`<div class="card"><input id="m" type="month" value="${M}" onchange="M=this.value;draw()"><div class="g"><div><b class="ok">${n('paid')}</b>مدفوع</div><div><b class="wn">${n('pending')}</b>مراجعة</div><div><b class="bad">${n('unpaid')}</b>غير مدفوع</div></div></div>
+  <div class="card"><b>إضافة رسوم الشهر</b><select id="sc"><option value="r">الشقق السكنية (88)</option><option value="c">المحلات التجارية (8)</option></select><input id="am" type="number" placeholder="المبلغ بالجنيه"><button onclick="genDues()">إضافة</button></div>
+  <div class="card"><b>طريقة السداد (تظهر للسكان)</b><textarea id="pt" rows="3" placeholder="مثال: حوّل على InstaPay ... ثم ارفع صورة الإيصال">${esc(S.set.text||'')}</textarea><button class="s" onclick="savePay()">حفظ</button></div>`
+  +rows.map(x=>`<div class="card"><div class="row"><span>${esc(ulabel(x.unit))} · ${esc(x.amount)}</span><b class="${ST[x.status][1]}">${ST[x.status][0]}</b></div><div>${x.receipt?`<button class="s" onclick="rc('${x.id}')">عرض الإيصال</button>`:''}${x.status!=='paid'?`<button class="s" onclick="setD('${x.id}','paid')">✓ تأكيد الدفع</button>`:''}${x.status==='pending'?`<button class="s" onclick="setD('${x.id}','unpaid')">✕ رفض</button>`:''}<button class="d" onclick="del('dues','${x.id}')">حذف</button></div></div>`).join('');
+}
+window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
+window.genDues=()=>{const a=+$('#am').value,t=$('#sc').value;if(!a)return alert('أدخل المبلغ');
+  wr(async()=>{const b=writeBatch(db);UNITS.filter(u=>u.t===t).forEach(u=>{const id=u.id+'_'+M;if(!S.dues.find(x=>x.id===id))b.set(doc(db,'dues',id),{unit:u.id,month:M,amount:a,status:'unpaid'})});await b.commit()})};
+window.savePay=()=>wr(()=>setDoc(doc(db,'settings','pay'),{text:$('#pt').value}));
+window.setD=(id,s)=>wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:today()}:{status:s,receipt:'',note:''}));
+window.rc=id=>{$('#oi').src=S.dues.find(x=>x.id===id).receipt;$('#ov').style.display='flex'};
+
+function vReq(){
+  const r=[...S.req].sort((a,b)=>b.ts-a.ts);
+  $('#v').innerHTML=(admin?'':`<div class="card"><input id="t" placeholder="المشكلة (مثال: عطل المصعد)"><textarea id="b" rows="3" placeholder="التفاصيل"></textarea><button onclick="addReq()">إرسال الطلب</button></div>`)+`<h2>${admin?'كل الطلبات':'طلباتي'}</h2>`+(r.map(x=>`<div class="card"><div class="row"><b>${esc(x.title)}</b><span class="mu">${RS[x.status]}</span></div><div>${esc(x.body)}</div><div class="mu">${esc(ulabel(x.unit))} · ${esc(x.date)}</div>${admin?`<select onchange="setR('${x.id}',this.value)">${Object.entries(RS).map(([k,v])=>`<option value="${k}" ${x.status===k?'selected':''}>${v}</option>`).join('')}</select>`:''}</div>`).join('')||'<div class="mu">لا توجد طلبات</div>');
+}
+window.addReq=()=>{const t=$('#t').value.trim();if(t)wr(()=>setDoc(doc(db,'requests',uidg()),{title:t,body:$('#b').value,uid:auth.currentUser.uid,unit:me.unit,status:'new',date:today(),ts:Date.now()}))};
+window.setR=(id,s)=>wr(()=>updateDoc(doc(db,'requests',id),{status:s}));
+
+function vVote(){
+  const p=[...S.polls].sort((a,b)=>b.ts-a.ts),u=auth.currentUser.uid;
+  $('#v').innerHTML=(admin?`<div class="card"><input id="q" placeholder="موضوع التصويت"><input id="o" placeholder="الخيارات مفصولة بفاصلة: موافق، غير موافق"><button onclick="addPoll()">إنشاء</button></div>`:'')+(p.map(x=>{
+    const vs=S.votes.filter(v=>v.poll===x.id),mine=vs.find(v=>v.uid===u);
+    return `<div class="card"><div class="row"><b>${esc(x.q)}</b>${admin?`<span><button class="s" onclick="togP('${x.id}')">${x.open?'إغلاق':'فتح'}</button><button class="d" onclick="del('polls','${x.id}')">✕</button></span>`:''}</div>${x.options.map((o,i)=>{const n=vs.filter(v=>v.choice===i).length,pc=vs.length?Math.round(n*100/vs.length):0;return `<div style="margin:8px 0"><div class="row"><span>${esc(o)} ${mine&&mine.choice===i?'✓':''}</span><span class="mu">${n} (${pc}%)</span></div><div class="bar"><i style="width:${pc}%"></i></div>${x.open&&!admin&&!mine?`<button class="s" onclick="vote('${x.id}',${i})">صوّت</button>`:''}</div>`}).join('')}<div class="mu">${x.open?'مفتوح':'مغلق'} · ${vs.length} صوت${mine?' · تم تصويتك':''}</div></div>`}).join('')||'<div class="mu">لا توجد تصويتات</div>');
+}
+window.addPoll=()=>{const q=$('#q').value.trim(),o=$('#o').value.split(/[,،]/).map(s=>s.trim()).filter(Boolean);if(!q||o.length<2)return alert('أدخل سؤالاً وخيارين على الأقل');wr(()=>setDoc(doc(db,'polls',uidg()),{q,options:o,open:true,ts:Date.now()}))};
+window.togP=id=>wr(()=>updateDoc(doc(db,'polls',id),{open:!S.polls.find(p=>p.id===id).open}));
+window.vote=(p,i)=>wr(()=>setDoc(doc(db,'votes',p+'_'+auth.currentUser.uid),{poll:p,uid:auth.currentUser.uid,unit:me.unit,choice:i}));
+
+function vRes(){
+  const used=new Set(S.users.map(u=>u.unit));
+  $('#v').innerHTML=`<div class="card"><b>إنشاء حساب ساكن</b><select id="un">${UNITS.map(u=>`<option value="${u.id}">${u.label}${used.has(u.id)?' (له حساب)':''}</option>`).join('')}</select><input id="n" placeholder="اسم الساكن"><input id="u" placeholder="اسم المستخدم (إنجليزي)" autocapitalize="none"><input id="p" type="text" placeholder="كلمة المرور (6 أحرف على الأقل)"><button onclick="addRes()">إنشاء الحساب</button></div><div class="mu">${S.users.filter(u=>u.role!=='admin').length} حساب</div>`+S.users.filter(u=>u.role!=='admin').sort((a,b)=>a.unit.localeCompare(b.unit,'en',{numeric:true})).map(x=>`<div class="card row"><span>${esc(ulabel(x.unit))} — ${esc(x.name)}<br><span class="mu">${esc(x.username)}</span></span><button class="d" onclick="del('users','${x.id}')">إيقاف</button></div>`).join('');
+}
+window.addRes=()=>{const u=$('#u').value.trim().toLowerCase(),p=$('#p').value,n=$('#n').value.trim(),un=$('#un').value;
+  if(!/^[a-z0-9._-]+$/.test(u)||!n||p.length<6)return alert('أكمل الحقول: اسم مستخدم إنجليزي وكلمة مرور 6 أحرف على الأقل');
+  wr(async()=>{const sec=initializeApp(CFG,'sec'+uidg()),sa=getAuth(sec);
+    const c=await createUserWithEmailAndPassword(sa,u+DOMAIN,p);await signOut(sa);
+    await setDoc(doc(db,'users',c.user.uid),{name:n,unit:un,username:u,role:'user'});alert('تم إنشاء الحساب')})};
+
+function vMe(){
+  $('#v').innerHTML=`<div class="card"><b>تفعيل الإشعارات</b><div class="mu">على الآيفون: أضف التطبيق للشاشة الرئيسية أولًا.</div><button onclick="enablePush()">🔔 تفعيل</button></div><div class="card"><b>تغيير كلمة المرور</b><input id="op" type="password" placeholder="الحالية"><input id="np" type="password" placeholder="الجديدة (6 أحرف على الأقل)"><button onclick="chPw()">تغيير</button></div>`;
+}
+window.chPw=()=>wr(async()=>{const u=auth.currentUser;if($('#np').value.length<6)return alert('كلمة المرور قصيرة');await reauthenticateWithCredential(u,EmailAuthProvider.credential(u.email,$('#op').value));await updatePassword(u,$('#np').value);alert('تم التغيير')});
+window.enablePush=async()=>{
+  try{if(await Notification.requestPermission()!=='granted')return alert('لم يتم السماح بالإشعارات');
+    if(!VAPID_KEY)return alert('الإشعارات تعمل أثناء فتح التطبيق. الإشعارات الخلفية غير مفعّلة بعد.');
+    const reg=await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    const t=await getToken(getMessaging(app0),{vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
+    await updateDoc(doc(db,'users',auth.currentUser.uid),{tokens:arrayUnion(t)});alert('تم تفعيل الإشعارات ✅')}catch(e){err(e)}
+};
+</script>
+</body>
+</html>
