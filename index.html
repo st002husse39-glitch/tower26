@@ -228,12 +228,22 @@ function vRes(){
               </span>
             </span>
 
-            <button
-              class="d"
-              onclick="del('users','${x.id}')"
-            >
-              إيقاف
-            </button>
+            <span>
+  <button
+    class="s"
+    onclick="editResident('${x.id}')"
+  >
+    تعديل
+  </button>
+
+  <button
+    class="d"
+    onclick="del('users','${x.id}')"
+  >
+    إيقاف
+  </button>
+</span>
+
           </div>
 
           <div>
