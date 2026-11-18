@@ -428,6 +428,50 @@ window.enablePush=async()=>{
     const t=await getToken(getMessaging(app0),{vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
     await updateDoc(doc(db,'users',auth.currentUser.uid),{tokens:arrayUnion(t)});alert('تم تفعيل الإشعارات ✅')}catch(e){err(e)}
 };
+ /* ===== توصيف المبلغ الشهري ===== */
+const _vA2=vDuesA;
+vDuesA=function(){
+  _vA2();
+  const am=$('#am');
+  if(am&&!$('#ds')){
+    const t=document.createElement('textarea');
+    t.id='ds';t.rows=2;
+    t.placeholder='توصيف المبلغ المطلوب (مثال: حارس + صيانة مصعد + كهرباء الدرج)';
+    t.value=window._ds||'';
+    t.oninput=()=>{window._ds=t.value};
+    am.after(t);
+  }
+};
+window.genDues=()=>{
+  const a=+$('#am').value,t=$('#sc').value,d=($('#ds')?$('#ds').value:'').trim();
+  if(!a)return alert('أدخل المبلغ');
+  wr(async()=>{
+    const b=writeBatch(db);let k=0;
+    UNITS.filter(u=>u.t===t).forEach(u=>{
+      const id=u.id+'_'+M;
+      if(!S.dues.find(x=>x.id===id)){
+        b.set(doc(db,'dues',id),{unit:u.id,month:M,amount:a,desc:d,status:'unpaid'});k++;
+      }
+    });
+    await b.commit();window._ds='';
+    alert('تمت إضافة الرسوم لـ '+k+' وحدة');
+  });
+};
+const _vD2=vDues;
+vDues=function(){
+  _vD2();
+  document.querySelectorAll('#v .card').forEach(c=>{
+    const r=c.querySelector('.row'),s=r&&r.querySelector('span');
+    if(!s)return;
+    const x=S.dues.find(d=>d.desc&&s.textContent.trim().startsWith(d.month+' '));
+    if(x){
+      const e=document.createElement('div');
+      e.className='mu';e.style.margin='6px 0';
+      e.textContent='📝 '+x.desc;
+      r.after(e);
+    }
+  });
+};
 </script>
 </body>
 </html>
