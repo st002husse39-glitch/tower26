@@ -472,6 +472,42 @@ vDues=function(){
     }
   });
 };
+ /* ===== رقم التواصل + تأكيد واتساب ===== */
+const waNum=p=>{let d=String(p||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.length===11&&d.startsWith('0'))d='2'+d;else if(d.length===10&&d.startsWith('1'))d='20'+d;return d.length>=11?d:''};
+window.setContact=id=>{
+  const u=S.users.find(x=>x.id===id);
+  const v=prompt('رقم هاتف التواصل (مثال: 01012345678)',(u&&u.contactPhone)||'');
+  if(v===null)return;
+  if(v.trim()&&!waNum(v))return alert('الرقم غير صحيح');
+  wr(()=>updateDoc(doc(db,'users',id),{contactPhone:v.trim()}));
+};
+function injectContact(){
+  document.querySelectorAll('#v button.d').forEach(b=>{
+    const m=(b.getAttribute('onclick')||'').match(/del\('users','([^']+)'\)/);
+    if(!m)return;
+    const card=b.closest('.card');
+    if(!card||card.querySelector('.cp'))return;
+    const u=S.users.find(x=>x.id===m[1]);
+    const d=document.createElement('div');
+    d.className='cp mu';d.style.cssText='width:100%;margin-top:6px';
+    d.innerHTML='📞 رقم التواصل: <b>'+esc((u&&u.contactPhone)||'غير مضاف')+'</b> <button class="s" onclick="setContact(\''+m[1]+'\')">✏️ تعديل</button>';
+    card.appendChild(d);
+  });
+}
+new MutationObserver(injectContact).observe(document.getElementById('app'),{childList:true,subtree:true});
+const _setD=window.setD;
+window.setD=(id,s)=>{
+  _setD(id,s);
+  if(s!=='paid')return;
+  const d=S.dues.find(x=>x.id===id);if(!d)return;
+  const us=S.users.filter(x=>x.role!=='admin'&&x.unit===d.unit);
+  const u=us.find(x=>waNum(x.contactPhone))||us[0];
+  const ph=waNum(u&&u.contactPhone);
+  if(!ph)return alert('تم تأكيد الدفع. لا يوجد رقم تواصل لهذه الوحدة، أضفه من تبويب السكان.');
+  if(!confirm('تم تأكيد الدفع. هل تريد فتح واتساب لإرسال رسالة التأكيد؟'))return;
+  const msg='السيد/ '+((u&&u.name)||'الساكن')+' — '+ulabel(d.unit)+'\nتم استلام ومراجعة إيصال التحويل الخاص برسوم شهر '+d.month+' بمبلغ '+d.amount+' جنيه، وتم تأكيد السداد ✅\nشكرًا لكم.\nإدارة برج 26 — أبراج الصفوة';
+  window.open('https://wa.me/'+ph+'?text='+encodeURIComponent(msg),'_blank');
+};
 </script>
 </body>
 </html>
