@@ -508,6 +508,101 @@ window.setD=(id,s)=>{
   const msg='السيد/ '+((u&&u.name)||'الساكن')+' — '+ulabel(d.unit)+'\nتم استلام ومراجعة إيصال التحويل الخاص برسوم شهر '+d.month+' بمبلغ '+d.amount+' جنيه، وتم تأكيد السداد ✅\nشكرًا لكم.\nإدارة برج 26 — أبراج الصفوة';
   window.open('https://wa.me/'+ph+'?text='+encodeURIComponent(msg),'_blank');
 };
+ /* ===== تبويب التقارير + التصدير ===== */
+let rp={v:'sum',m:month0(),u:UNITS[0].id,y:String(new Date().getFullYear())};
+const stL=s=>(ST[s]||[s])[0];
+const unitName=u=>{const x=S.users.find(z=>z.role!=='admin'&&z.unit===u);return x?x.name:''};
+function repData(){
+  const D=S.dues,num=x=>+x.amount||0;
+  if(rp.v==='sum'){
+    const l=D.filter(x=>x.month===rp.m),sm=f=>l.filter(f).reduce((s,x)=>s+num(x),0),tot=sm(()=>true),pd=sm(x=>x.status==='paid');
+    return{title:'تقرير التحصيل الشهري — '+rp.m,
+      sum:[['إجمالي المطلوب',tot],['المحصّل',pd],['قيد المراجعة',sm(x=>x.status==='pending')],['غير مدفوع',sm(x=>x.status==='unpaid')],['نسبة التحصيل',(tot?Math.round(pd*100/tot):0)+'%']],
+      head:['الوحدة','الساكن','المبلغ','الحالة','تاريخ السداد'],
+      rows:[...l].sort((a,b)=>a.unit.localeCompare(b.unit,'en',{numeric:true})).map(x=>[ulabel(x.unit),unitName(x.unit),x.amount,stL(x.status),x.paidAt||''])};
+  }
+  if(rp.v==='arr'){
+    const g={};
+    D.filter(x=>x.status!=='paid').forEach(x=>{const o=g[x.unit]||(g[x.unit]={n:0,a:0,p:0});o.n++;if(x.status==='pending')o.p+=num(x);else o.a+=num(x)});
+    const ks=Object.keys(g).sort((a,b)=>g[b].a-g[a].a);
+    return{title:'كشف المتأخرات',
+      sum:[['عدد الوحدات المتأخرة',ks.filter(k=>g[k].a>0).length],['إجمالي المتأخرات',ks.reduce((s,k)=>s+g[k].a,0)],['قيد المراجعة',ks.reduce((s,k)=>s+g[k].p,0)]],
+      head:['الوحدة','الساكن','عدد الأشهر','المتأخر','قيد المراجعة'],
+      rows:ks.map(k=>[ulabel(k),unitName(k),g[k].n,g[k].a,g[k].p])};
+  }
+  const l=D.filter(x=>x.unit===rp.u&&(rp.y==='all'||x.month.startsWith(rp.y))).sort((a,b)=>a.month.localeCompare(b.month));
+  const sm=f=>l.filter(f).reduce((s,x)=>s+num(x),0);
+  return{title:'كشف حساب '+ulabel(rp.u)+(unitName(rp.u)?' — '+unitName(rp.u):'')+' — '+(rp.y==='all'?'كل الأشهر':rp.y),
+    sum:[['إجمالي المطلوب',sm(()=>true)],['المدفوع',sm(x=>x.status==='paid')],['المتبقي',sm(x=>x.status!=='paid')]],
+    head:['الشهر','المبلغ','الحالة','تاريخ السداد','البيان'],
+    rows:l.map(x=>[x.month,x.amount,stL(x.status),x.paidAt||'',x.desc||''])};
+}
+function repRender(){
+  const v=document.getElementById('v');if(!v)return;
+  const d=repData(),yrs=[...new Set(['all',String(new Date().getFullYear()),...S.dues.map(x=>x.month.slice(0,4))])];
+  const ctrl=rp.v==='sum'?`<input type="month" value="${rp.m}" onchange="rpSet('m',this.value)">`
+    :rp.v==='ann'?`<select onchange="rpSet('u',this.value)">${UNITS.map(u=>`<option value="${u.id}" ${u.id===rp.u?'selected':''}>${u.label}</option>`).join('')}</select><select onchange="rpSet('y',this.value)">${yrs.map(y=>`<option value="${y}" ${y===rp.y?'selected':''}>${y==='all'?'كل الأشهر':y}</option>`).join('')}</select>`:'';
+  v.innerHTML=`<div id="rep"><div class="card noprint"><select onchange="rpSet('v',this.value)">${[['sum','تقرير التحصيل الشهري'],['arr','كشف المتأخرات'],['ann','كشف حساب وحدة']].map(o=>`<option value="${o[0]}" ${o[0]===rp.v?'selected':''}>${o[1]}</option>`).join('')}</select>${ctrl}<button onclick="rpExport()">📤 تصدير التقرير</button></div>
+  <div class="card"><div class="mu">برج 26 — أبراج الصفوة · ${new Date().toLocaleDateString('ar-EG')}</div><h2 style="margin-top:4px">${esc(d.title)}</h2>${(d.sum||[]).map(r=>`<div class="row"><span>${esc(r[0])}</span><b>${esc(r[1])}</b></div>`).join('')}</div>
+  <div class="card" style="overflow-x:auto"><table class="rt"><tr>${d.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>${d.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${d.head.length}" class="mu">لا توجد بيانات</td></tr>`}</table></div></div>`;
+}
+const repName=()=>'report-'+rp.v+'-'+(rp.v==='sum'?rp.m:rp.v==='ann'?rp.u+'-'+rp.y:'arrears');
+window.rpCsv=()=>{
+  const d=repData(),q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+  const lines=[[d.title],...(d.sum||[]),[],d.head,...d.rows].map(r=>r.map(q).join(','));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));
+  a.download=repName()+'.csv';
+  document.body.appendChild(a);a.click();a.remove();
+};
+window.rpExport=()=>{
+  const o=document.createElement('div');
+  o.id='expm';
+  o.style.cssText='position:fixed;inset:0;background:#000a;z-index:20;display:flex;align-items:center;justify-content:center;padding:20px';
+  o.innerHTML=`<div class="card" style="width:100%;max-width:360px"><h2 style="margin-top:0">تصدير التقرير</h2><button onclick="rpDo(1)">📊 Excel</button><button onclick="rpDo(2)">📄 PDF</button><button class="s" style="width:100%" onclick="document.getElementById('expm').remove()">إلغاء</button></div>`;
+  o.onclick=e=>{if(e.target===o)o.remove()};
+  document.body.appendChild(o);
+};
+window.rpDo=k=>{
+  const m=document.getElementById('expm');if(m)m.remove();
+  if(k===1)rpXlsx();else setTimeout(()=>window.print(),150);
+};
+window.rpXlsx=()=>{
+  const d=repData();
+  const go=()=>{
+    const ws=XLSX.utils.aoa_to_sheet([[d.title],...(d.sum||[]),[],d.head,...d.rows]);
+    const wb=XLSX.utils.book_new();
+    wb.Workbook={Views:[{RTL:true}]};
+    XLSX.utils.book_append_sheet(wb,ws,'التقرير');
+    XLSX.writeFile(wb,repName()+'.xlsx');
+  };
+  if(window.XLSX)return go();
+  const s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload=go;
+  s.onerror=()=>{alert('تعذر تحميل مكتبة Excel، سيتم التصدير بصيغة CSV');rpCsv()};
+  document.head.appendChild(s);
+};
+document.head.insertAdjacentHTML('beforeend','<style>.rt{width:100%;border-collapse:collapse}.rt th,.rt td{padding:6px 8px;text-align:right;font-size:14px;border-bottom:1px solid var(--bd);white-space:nowrap}@media print{nav,.noprint,#app>.row,#app>.mu{display:none!important}:root{--bg:#fff;--card:#fff;--tx:#000;--mu:#444;--bd:#ccc;--ok:#166534;--bad:#991b1b;--wn:#92400e}body{max-width:none}}</style>');
+const repMo=new MutationObserver(()=>repSync());
+const repWatch=()=>repMo.observe(document.getElementById('app'),{childList:true,subtree:true});
+function repSync(){
+  repMo.disconnect();
+  try{
+    if(admin&&me){
+      const nav=document.querySelector('nav');
+      if(nav&&!nav.querySelector('.rb')){
+        const b=document.createElement('button');
+        b.className='rb'+(tab==='rep'?' on':'');b.textContent='التقارير';
+        b.onclick=()=>{tab='rep';draw()};
+        nav.appendChild(b);
+      }
+      if(tab==='rep'&&!document.getElementById('rep'))repRender();
+    }
+  }finally{repMo.takeRecords();repWatch()}
+}
+window.rpSet=(k,val)=>{rp[k]=val;repMo.disconnect();try{repRender()}finally{repMo.takeRecords();repWatch()}};
+repSync();
 </script>
 </body>
 </html>
