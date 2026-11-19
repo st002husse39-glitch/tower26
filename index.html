@@ -853,7 +853,8 @@ function pjResCard(p){
 function pjOrd(o,p){
   const st=PS[o.status];
   let h=`<div style="border-top:1px solid var(--bd);margin-top:8px;padding-top:8px"><div class="row"><b>${o.kind==='base'?'طلبي':'طلب إضافات'}</b><b class="${st[1]}">${st[0]}</b></div>`;
-  if(o.status==='new'){
+  if(o.status==='new'||
+     o.status==='draft'){
     const dr=pjDr[o.id]||(pjDr[o.id]=Object.fromEntries((p.addons||[]).map((a,i)=>[i,((o.items||[]).find(x=>x.n===a.n)||{}).q||0])));
     h+=(o.kind==='base'?`<div class="row"><span>${esc(o.items[0].n)}</span><span>${o.items[0].p} جنيه</span></div>`:'')
       +(p.addons||[]).map((a,i)=>`<div class="row"><span>${esc(a.n)} <span class="mu">${a.p} جنيه (حتى ${a.m})</span></span><span><button class="s" onclick="pjQ('${o.id}',${i},-1,${a.m})">−</button> <b>${dr[i]}</b> <button class="s" onclick="pjQ('${o.id}',${i},1,${a.m})">+</button></span></div>`).join('')
@@ -865,11 +866,11 @@ window.pjQ=(id,i,d,m)=>{const dr=pjDr[id];if(!dr)return;dr[i]=Math.max(0,Math.mi
 window.pjSave=id=>{const b=pjBuild(id);wr(()=>updateDoc(doc(db,'orders',id),{items:b.items,total:b.total})).then(()=>alert('تم الحفظ'))};
 window.pjJoin=pid=>{
   const p=S.pj.find(x=>x.id===pid);if(!p)return;
-  wr(()=>setDoc(doc(db,'orders',pid+'_'+me.unit),{pid,pname:p.name,unit:me.unit,kind:'base',items:[{n:p.name+' (الأساسي'+(p.baseDesc?' — '+p.baseDesc:'')+')',p:p.base,q:1,base:1}],total:p.base,status:'new',ts:Date.now()}));
+  wr(()=>setDoc(doc(db,'orders',pid+'_'+me.unit),{pid,pname:p.name,unit:me.unit,kind:'base',items:[{n:p.name+' (الأساسي'+(p.baseDesc?' — '+p.baseDesc:'')+')',p:p.base,q:1,base:1}],total:p.base,status:'draft',ts:Date.now()}));
 };
 window.pjExtra=pid=>{
   const p=S.pj.find(x=>x.id===pid);if(!p)return;
-  wr(()=>setDoc(doc(db,'orders',pid+'_'+me.unit+'_'+uidg()),{pid,pname:p.name,unit:me.unit,kind:'extra',items:[],total:0,status:'new',ts:Date.now()}));
+  wr(()=>setDoc(doc(db,'orders',pid+'_'+me.unit+'_'+uidg()),{pid,pname:p.name,unit:me.unit,kind:'extra',items:[],total:0,status:'draft',ts:Date.now()}));
 };
 window.pjPick=id=>{
   if(!(pjBuild(id).total>0))return alert('اختر بندًا أولًا');
