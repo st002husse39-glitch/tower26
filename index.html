@@ -530,19 +530,134 @@ vDues=function(){
 
         ${
           o.status==='pending'
-            ? `<div class="wn">تم رفع الإيصال، والطلب قيد مراجعة الإدارة.</div>`
+const _vD2=vDues;
+
+vDues=function(){
+  _vD2();
+
+  const projectOrders=(S.po||[])
+    .filter(x=>x.unit===me.unit&&x.status!=='cancelled')
+    .sort((a,b)=>(a.ts||0)-(b.ts||0));
+
+  const monthlyOwe=S.dues
+    .filter(x=>x.status==='unpaid')
+    .reduce((sum,x)=>sum+(+x.amount||0),0);
+
+  const projectOwe=projectOrders
+    .filter(x=>x.status==='new'||x.status==='draft')
+    .reduce((sum,x)=>sum+(+x.total||0),0);
+
+  const totalOwe=monthlyOwe+projectOwe;
+
+  const totalBox=document.querySelector('#v .card h1');
+
+  if(totalBox){
+    totalBox.textContent=totalOwe+' جنيه';
+    totalBox.className=totalOwe?'bad':'ok';
+  }
+
+  document.querySelectorAll('#v .card').forEach(card=>{
+    const row=card.querySelector('.row');
+    const firstSpan=row&&row.querySelector('span');
+
+    if(!firstSpan)return;
+
+    const due=S.dues.find(x=>
+      x.desc&&firstSpan.textContent.trim().startsWith(x.month+' ')
+    );
+
+    if(due){
+      const description=document.createElement('div');
+      description.className='mu';
+      description.style.margin='6px 0';
+      description.textContent='📝 '+due.desc;
+      row.after(description);
+    }
+  });
+
+  const projectCards=projectOrders.map(order=>{
+    const status=PS[order.status]||['غير مسدد','bad'];
+    const canUpload=
+      order.status==='new'||order.status==='draft';
+
+    return `
+      <div class="card">
+        <div class="row">
+          <span>
+            <b>${esc(order.pname||'مشروع')}</b>
+          </span>
+
+          <b class="${status[1]}">
+            ${status[0]}
+          </b>
+        </div>
+
+        <div class="mu">
+          ${
+            order.kind==='base'
+              ? 'التكلفة الأساسية للمشروع'
+              : 'إضافات طلبها الساكن'
+          }
+          · ${order.total||0} جنيه
+        </div>
+
+        ${
+          canUpload
+            ? `
+              <button onclick="pjPick('${order.id}')">
+                📷 رفع إيصال التحويل
+              </button>
+            `
             : ''
         }
 
         ${
-          o.status==='paid'
-            ? `<div class="ok">تم استلام المبلغ، وبانتظار التنفيذ.</div>`
+          order.status==='draft'
+            ? `
+              <div class="mu">
+                مسودة — لم يتم إرسال الإيصال إلى الإدارة بعد.
+              </div>
+            `
             : ''
         }
 
         ${
-          o.status==='done'
-            ? `<div class="ok">تم السداد والتنفيذ.</div>`
+          order.status==='new'
+            ? `
+              <div class="mu">
+                يجب رفع إيصال التحويل لإرسال الطلب إلى الإدارة.
+              </div>
+            `
+            : ''
+        }
+
+        ${
+          order.status==='pending'
+            ? `
+              <div class="wn">
+                تم رفع الإيصال والطلب قيد مراجعة الإدارة.
+              </div>
+            `
+            : ''
+        }
+
+        ${
+          order.status==='paid'
+            ? `
+              <div class="ok">
+                تم استلام المبلغ وبانتظار التنفيذ.
+              </div>
+            `
+            : ''
+        }
+
+        ${
+          order.status==='done'
+            ? `
+              <div class="ok">
+                تم استلام المبلغ وتنفيذ الطلب.
+              </div>
+            `
             : ''
         }
       </div>
@@ -550,20 +665,22 @@ vDues=function(){
   }).join('');
 
   if(projectCards){
-    const title=document.createElement('h2');
-    title.textContent='مشاريع وطلبات إضافية';
-    const box=document.createElement('div');
-    box.innerHTML=title.outerHTML+projectCards;
+    const section=document.createElement('div');
+
+    section.innerHTML=
+      '<h2>المشاريع والطلبات الإضافية</h2>'+
+      projectCards;
 
     const fileInput=document.querySelector('#v #f');
 
     if(fileInput){
-      fileInput.before(box);
+      fileInput.before(section);
     }else{
-      document.querySelector('#v').appendChild(box);
+      document.querySelector('#v').appendChild(section);
     }
   }
 };
+
 
  /* ===== رقم التواصل + تأكيد واتساب ===== */
 const waNum=p=>{let d=String(p||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.length===11&&d.startsWith('0'))d='2'+d;else if(d.length===10&&d.startsWith('1'))d='20'+d;return d.length>=11?d:''};
