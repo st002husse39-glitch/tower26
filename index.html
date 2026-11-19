@@ -463,13 +463,6 @@ vDues=function(){
   _vD2();
 
   const projectOrders=(S.po||[])
-
-const _vD2=vDues;
-
-vDues=function(){
-  _vD2();
-
-  const projectOrders=(S.po||[])
     .filter(x=>x.unit===me.unit&&x.status!=='cancelled')
     .sort((a,b)=>(a.ts||0)-(b.ts||0));
 
