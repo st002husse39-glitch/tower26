@@ -121,13 +121,186 @@ function upload(file){
   im.src=URL.createObjectURL(file);
 }
 function vDuesA(){
-  const l=S.dues.filter(x=>x.month===M),n=s=>l.filter(x=>x.status===s).length;
-  const rows=[...l].sort((a,b)=>(b.status==='pending')-(a.status==='pending')||a.unit.localeCompare(b.unit,'en',{numeric:true}));
-  $('#v').innerHTML=`<div class="card"><input id="m" type="month" value="${M}" onchange="M=this.value;draw()"><div class="g"><div><b class="ok">${n('paid')}</b>مدفوع</div><div><b class="wn">${n('pending')}</b>مراجعة</div><div><b class="bad">${n('unpaid')}</b>غير مدفوع</div></div></div>
-  <div class="card"><b>إضافة رسوم الشهر</b><select id="sc"><option value="r">الشقق السكنية (88)</option><option value="c">المحلات التجارية (8)</option></select><input id="am" type="number" placeholder="المبلغ بالجنيه"><button onclick="genDues()">إضافة</button></div>
-  <div class="card"><b>طريقة السداد (تظهر للسكان)</b><textarea id="pt" rows="3" placeholder="مثال: حوّل على InstaPay ... ثم ارفع صورة الإيصال">${esc(S.set.text||'')}</textarea><button class="s" onclick="savePay()">حفظ</button></div>`
-  +rows.map(x=>`<div class="card"><div class="row"><span>${esc(ulabel(x.unit))} · ${esc(x.amount)}</span><b class="${ST[x.status][1]}">${ST[x.status][0]}</b></div><div>${x.receipt?`<button class="s" onclick="rc('${x.id}')">عرض الإيصال</button>`:''}${x.status!=='paid'?`<button class="s" onclick="setD('${x.id}','paid')">✓ تأكيد الدفع</button>`:''}${x.status==='pending'?`<button class="s" onclick="setD('${x.id}','unpaid')">✕ رفض</button>`:''}<button class="d" onclick="del('dues','${x.id}')">حذف</button></div></div>`).join('');
+  const l=S.dues.filter(x=>x.month===M);
+  const filter=window.duesFilter||'all';
+
+  const filtered=l.filter(x=>
+    filter==='all'||x.status===filter
+  );
+
+  const n=s=>l.filter(x=>x.status===s).length;
+
+  const rank={
+    pending:0,
+    unpaid:1,
+    paid:2
+  };
+
+  const rows=[...filtered].sort((a,b)=>
+    (rank[a.status]??9)-(rank[b.status]??9)||
+    a.unit.localeCompare(
+      b.unit,
+      'en',
+      {numeric:true}
+    )
+  );
+
+  $('#v').innerHTML=`
+    <div class="card">
+      <input
+        id="m"
+        type="month"
+        value="${M}"
+        onchange="M=this.value;draw()"
+      >
+
+      <div class="g">
+        <div>
+          <b class="ok">${n('paid')}</b>
+          مدفوع
+        </div>
+
+        <div>
+          <b class="wn">${n('pending')}</b>
+          بانتظار المراجعة
+        </div>
+
+        <div>
+          <b class="bad">${n('unpaid')}</b>
+          غير مدفوع
+        </div>
+      </div>
+
+      <select
+        onchange="window.duesFilter=this.value;draw()"
+      >
+        <option value="all" ${filter==='all'?'selected':''}>
+          كل الطلبات
+        </option>
+
+        <option value="pending" ${filter==='pending'?'selected':''}>
+          بانتظار المراجعة
+        </option>
+
+        <option value="paid" ${filter==='paid'?'selected':''}>
+          مدفوع
+        </option>
+
+        <option value="unpaid" ${filter==='unpaid'?'selected':''}>
+          غير مدفوع
+        </option>
+      </select>
+    </div>
+
+    <div class="card">
+      <b>إضافة رسوم الشهر</b>
+
+      <select id="sc">
+        <option value="r">
+          الشقق السكنية (88)
+        </option>
+
+        <option value="c">
+          المحلات التجارية (8)
+        </option>
+      </select>
+
+      <input
+        id="am"
+        type="number"
+        placeholder="المبلغ بالجنيه"
+      >
+
+      <button onclick="genDues()">
+        إضافة
+      </button>
+    </div>
+
+    <div class="card">
+      <b>طريقة السداد التي تظهر للسكان</b>
+
+      <textarea
+        id="pt"
+        rows="3"
+        placeholder="مثال: حوّل على InstaPay ..."
+      >${esc(S.set.text||'')}</textarea>
+
+      <button
+        class="s"
+        onclick="savePay()"
+      >
+        حفظ
+      </button>
+    </div>
+
+    ${
+      rows.map(x=>`
+        <div class="card">
+          <div class="row">
+            <span>
+              <b>${esc(ulabel(x.unit))}</b>
+              · ${esc(x.amount)} جنيه
+            </span>
+
+            <b class="${ST[x.status][1]}">
+              ${ST[x.status][0]}
+            </b>
+          </div>
+
+          ${
+            x.desc
+              ? `<div class="mu">📝 ${esc(x.desc)}</div>`
+              : ''
+          }
+
+          <div>
+            ${
+              x.receipt
+                ? `<button
+                     class="s"
+                     onclick="rc('${x.id}')"
+                   >
+                     عرض الإيصال
+                   </button>`
+                : ''
+            }
+
+            ${
+              x.status!=='paid'
+                ? `<button
+                     class="s"
+                     onclick="setD('${x.id}','paid')"
+                   >
+                     ✓ تأكيد الدفع
+                   </button>`
+                : ''
+            }
+
+            ${
+              x.status==='pending'
+                ? `<button
+                     class="s"
+                     onclick="setD('${x.id}','unpaid')"
+                   >
+                     ✕ رفض الإيصال
+                   </button>`
+                : ''
+            }
+
+            <button
+              class="d"
+              onclick="del('dues','${x.id}')"
+            >
+              حذف
+            </button>
+          </div>
+        </div>
+      `).join('')
+      || '<div class="mu">لا توجد رسوم بهذا الفلتر</div>'
+    }
+  `;
 }
+
 window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
 window.genDues=()=>{const a=+$('#am').value,t=$('#sc').value;if(!a)return alert('أدخل المبلغ');
   wr(async()=>{const b=writeBatch(db);UNITS.filter(u=>u.t===t).forEach(u=>{const id=u.id+'_'+M;if(!S.dues.find(x=>x.id===id))b.set(doc(db,'dues',id),{unit:u.id,month:M,amount:a,status:'unpaid'})});await b.commit()})};
