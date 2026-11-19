@@ -639,6 +639,256 @@ window.addAdm=()=>{
   });
 };
 admUI();
+ /* ===== المشاريع ===== */
+S.pj=[];S.po=[];
+let pjSel=null,pjF={t:'m',sh:'1',a:[]},pjDr={},pjFl='all',pjUid=null,pjAdm=null,pjUn=[];
+const PS={new:['غير مسدد','bad'],pending:['قيد المراجعة','wn'],paid:['تم استلام المبلغ','ok'],done:['تم التسليم/التنفيذ','ok'],cancelled:['ملغي','mu']};
+const pjTot=a=>a.reduce((s,i)=>s+i.p*i.q,0);
+const pjLine=o=>(o.items||[]).filter(i=>i.q>0).map(i=>i.n+(i.q>1?' × '+i.q:'')).join('، ');
+const pjWa=p=>{let d=String(p||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);if(d.length===11&&d.startsWith('0'))d='2'+d;else if(d.length===10&&d.startsWith('1'))d='20'+d;return d.length>=11?d:''};
+const pjUser=u=>{const l=S.users.filter(x=>x.role!=='admin'&&x.unit===u);return l.find(x=>pjWa(x.contactPhone))||l[0]||{}};
+const pjSort=(a,b)=>a.unit.localeCompare(b.unit,'en',{numeric:true});
+const pjPd=x=>x.status==='paid'||x.status==='done';
+const pjCalc=(o,p)=>{const dr=pjDr[o.id]||{};return(o.kind==='base'?o.items[0].p:0)+(p.addons||[]).reduce((s,a,i)=>s+a.p*(dr[i]||0),0)};
+const pjBuild=id=>{
+  const o=S.po.find(x=>x.id===id),p=S.pj.find(x=>x.id===o.pid),dr=pjDr[id]||{};
+  const items=(o.kind==='base'?[o.items[0]]:[]).concat((p.addons||[]).map((a,i)=>({n:a.n,p:a.p,q:dr[i]||0})).filter(i=>i.q>0));
+  return{items,total:pjTot(items)};
+};
+
+/* الاشتراك في البيانات */
+function pjStart(){
+  pjAdm=admin;
+  const c=n=>collection(db,n);
+  const h=(k,q)=>pjUn.push(onSnapshot(q,s=>{S[k]=s.docs.map(d=>({id:d.id,...d.data()}));pjRef()},e=>console.warn(k,e.code)));
+  h('pj',c('projects'));
+  h('po',admin?c('orders'):query(c('orders'),where('unit','==',me.unit)));
+}
+function pjStop(){pjUn.forEach(f=>f());pjUn=[]}
+const pjRef=()=>{if(tab==='pj'&&me)draw()};
+setInterval(()=>{
+  const u=auth.currentUser;
+  if(u&&me&&(pjUid!==u.uid||pjAdm!==admin)){pjStop();pjUid=u.uid;pjStart()}
+  else if(!u&&pjUid){pjStop();pjUid=null;S.pj=[];S.po=[]}
+},700);
+
+/* التبويب */
+document.head.insertAdjacentHTML('beforeend','<style>.pjt{width:100%;border-collapse:collapse}.pjt th,.pjt td{padding:6px 8px;text-align:right;font-size:14px;border-bottom:1px solid var(--bd);white-space:nowrap}.pjp{display:none}@media print{.pjp{display:block}nav,.noprint,#app>.row,#app>.mu{display:none!important}:root{--bg:#fff;--card:#fff;--tx:#000;--mu:#444;--bd:#ccc;--ok:#166534;--bad:#991b1b;--wn:#92400e}body{max-width:none}}</style>');
+const pjMo=new MutationObserver(()=>pjSync());
+const pjW=()=>pjMo.observe(document.getElementById('app'),{childList:true,subtree:true});
+function pjSync(){
+  pjMo.disconnect();
+  try{
+    if(me){
+      const nav=document.querySelector('nav');
+      if(nav&&!nav.querySelector('.pjb')){
+        const b=document.createElement('button');
+        b.className='pjb'+(tab==='pj'?' on':'');b.textContent='المشاريع';
+        b.onclick=()=>{tab='pj';draw()};
+        nav.appendChild(b);
+      }
+      if(tab==='pj'&&!document.getElementById('pjv'))pjRender();
+    }
+  }finally{pjMo.takeRecords();pjW()}
+}
+function pjRender(){
+  const v=document.getElementById('v');if(!v)return;
+  v.innerHTML='<div id="pjv">'+(admin?(pjSel?pjAdminProj():pjAdminList()):pjRes())+'</div>';
+}
+const pjRe=()=>{pjMo.disconnect();try{pjRender()}finally{pjMo.takeRecords();pjW()}};
+
+/* واجهة المدير: قائمة المشاريع + نموذج الإنشاء */
+function pjAdminList(){
+  const F=pjF;
+  const ad=F.a.map((x,i)=>`<div class="row"><span>${esc(x.n)} — ${x.p} جنيه (حتى ${x.m})</span><button class="d" onclick="pjAdDel(${i})">✕</button></div>`).join('');
+  const form=`<div class="card"><b>مشروع جديد</b>
+<input placeholder="اسم المشروع (مثال: الكالون الإلكتروني)" value="${esc(F.n||'')}" oninput="pjIn('n',this.value)">
+<textarea rows="2" placeholder="وصف المشروع" oninput="pjIn('d',this.value)">${esc(F.d||'')}</textarea>
+<select onchange="pjIn('t',this.value)"><option value="m" ${F.t==='m'?'selected':''}>إجباري على كل الوحدات</option><option value="o" ${F.t==='o'?'selected':''}>اختياري (الساكن يطلب)</option></select>
+<select onchange="pjIn('sh',this.value)"><option value="1" ${F.sh==='1'?'selected':''}>يشمل المحلات التجارية</option><option value="0" ${F.sh==='0'?'selected':''}>الشقق فقط</option></select>
+<input type="number" placeholder="التكلفة الأساسية لكل وحدة" value="${esc(F.b??'')}" oninput="pjIn('b',this.value)">
+<input placeholder="ماذا تشمل التكلفة الأساسية؟ (مثال: شاملة شفرتين)" value="${esc(F.bd||'')}" oninput="pjIn('bd',this.value)">
+<div class="mu">آخر موعد للطلب (اختياري)</div><input type="date" value="${esc(F.dl||'')}" onchange="pjIn('dl',this.value)">
+<b>الإضافات الاختيارية</b>${ad}
+<input id="pjan" placeholder="اسم الإضافة (مثال: شفرة إضافية)"><input id="pjap" type="number" placeholder="سعرها"><input id="pjam" type="number" placeholder="الحد الأقصى للكمية لكل وحدة">
+<button class="s" onclick="pjAdAdd()">+ إضافة للقائمة</button>
+<button onclick="pjCreate()">إنشاء المشروع</button></div>`;
+  const list=S.pj.slice().sort((a,b)=>b.ts-a.ts).map(p=>{
+    const o=S.po.filter(x=>x.pid===p.id&&x.status!=='cancelled'),s=f=>o.filter(f).reduce((a,x)=>a+x.total,0);
+    return `<div class="card"><div class="row"><b>${esc(p.name)}</b><span class="mu">${p.mandatory?'إجباري':'اختياري'}${p.open?'':' · مغلق'}</span></div><div class="mu">${o.length} طلب · المطلوب ${s(()=>1)} · المحصّل ${s(pjPd)}</div><button class="s" onclick="pjOpen('${p.id}')">فتح</button><button class="s" onclick="pjTog('${p.id}')">${p.open?'إغلاق الطلب':'إعادة فتح'}</button><button class="d" onclick="pjDelP('${p.id}')">حذف</button></div>`;
+  }).join('')||'<div class="mu">لا توجد مشاريع بعد</div>';
+  return `<button class="s" onclick="pjCmp()">📊 مقارنة المشاريع وتصديرها</button>`+list+form;
+}
+window.pjIn=(k,v)=>{pjF[k]=v};
+window.pjAdDel=i=>{pjF.a.splice(i,1);pjRe()};
+window.pjAdAdd=()=>{
+  const n=$('#pjan').value.trim(),p=+$('#pjap').value,m=+$('#pjam').value||99;
+  if(!n||!(p>0))return alert('أدخل اسم الإضافة وسعرها');
+  pjF.a.push({n,p,m});pjRe();
+};
+window.pjCreate=()=>{
+  const F=pjF,b=+F.b;
+  if(!(F.n||'').trim()||F.b===undefined||F.b===''||!(b>=0))return alert('أدخل اسم المشروع والتكلفة الأساسية');
+  wr(async()=>{
+    const id=uidg(),p={name:F.n.trim(),desc:F.d||'',mandatory:F.t==='m',shops:F.sh==='1',base:b,baseDesc:F.bd||'',addons:F.a,deadline:F.dl||'',open:true,ts:Date.now()};
+    const bt=writeBatch(db);bt.set(doc(db,'projects',id),p);
+    if(p.mandatory)UNITS.filter(u=>p.shops||u.t==='r').forEach(u=>bt.set(doc(db,'orders',id+'_'+u.id),{pid:id,pname:p.name,unit:u.id,kind:'base',items:[{n:p.name+' (الأساسي'+(p.baseDesc?' — '+p.baseDesc:'')+')',p:b,q:1,base:1}],total:b,status:'new',ts:Date.now()}));
+    await bt.commit();
+    pjF={t:'m',sh:'1',a:[]};
+    alert('تم إنشاء المشروع'+(p.mandatory?' وأُنشئت طلبات لكل الوحدات المشمولة':''));
+    pjRe();
+  });
+};
+window.pjOpen=id=>{pjSel=id;pjFl='all';pjRe()};
+window.pjCmp=()=>{pjSel='*';pjRe()};
+window.pjBack=()=>{pjSel=null;pjRe()};
+window.pjTog=id=>{const p=S.pj.find(x=>x.id===id);if(p)wr(()=>updateDoc(doc(db,'projects',id),{open:!p.open}))};
+window.pjDelP=id=>{
+  if(!confirm('حذف المشروع وكل طلباته نهائيًا؟'))return;
+  wr(async()=>{const b=writeBatch(db);S.po.filter(x=>x.pid===id).forEach(x=>b.delete(doc(db,'orders',x.id)));b.delete(doc(db,'projects',id));await b.commit()});
+};
+
+/* التقرير */
+function pjRep(){
+  if(!pjSel||pjSel==='*'){
+    return{title:'مقارنة المشاريع',sum:[],secs:[{name:'المشاريع',head:['المشروع','النوع','عدد الطلبات','المطلوب','المحصّل','غير مسدد','تم التسليم'],rows:S.pj.map(p=>{
+      const o=S.po.filter(x=>x.pid===p.id&&x.status!=='cancelled'),s=f=>o.filter(f).reduce((a,x)=>a+x.total,0);
+      return[p.name,p.mandatory?'إجباري':'اختياري',o.length,s(()=>1),s(pjPd),s(x=>!pjPd(x)),o.filter(x=>x.status==='done').length];
+    })}]};
+  }
+  const p=S.pj.find(x=>x.id===pjSel)||{name:''},o=S.po.filter(x=>x.pid===pjSel&&x.status!=='cancelled').sort(pjSort),s=f=>o.filter(f).reduce((a,x)=>a+x.total,0);
+  const g={};
+  o.forEach(x=>(x.items||[]).forEach(i=>{if(!(i.q>0))return;const r=g[i.n]||(g[i.n]={p:i.p,q:0,pq:0,a:0});r.q+=i.q;if(pjPd(x))r.pq+=i.q;r.a+=i.p*i.q}));
+  const un=x=>pjUser(x.unit).name||'';
+  return{title:'تقرير مشروع: '+p.name,
+    sum:[['عدد الطلبات',o.length],['إجمالي المطلوب',s(()=>1)],['المحصّل',s(pjPd)],['قيد المراجعة',s(x=>x.status==='pending')],['غير مسدد',s(x=>x.status==='new')],['بانتظار التسليم (عدد)',o.filter(x=>x.status==='paid').length],['تم التسليم (عدد)',o.filter(x=>x.status==='done').length]],
+    secs:[
+      {name:'كميات التوريد',head:['البند','السعر','الكمية المطلوبة','الكمية المسددة','الإجمالي'],rows:Object.keys(g).map(k=>[k,g[k].p,g[k].q,g[k].pq,g[k].a])},
+      {name:'قائمة التسليم',head:['الوحدة','الساكن','التفاصيل','المبلغ'],rows:o.filter(x=>x.status==='paid').map(x=>[ulabel(x.unit),un(x),pjLine(x),x.total])},
+      {name:'كل الطلبات',all:1,head:['الوحدة','الساكن','التفاصيل','الإجمالي','الحالة'],rows:o.map(x=>[ulabel(x.unit),un(x),pjLine(x),x.total,PS[x.status][0]])}
+    ]};
+}
+const pjTbl=s=>`<div class="card" style="overflow-x:auto"><b>${esc(s.name)}</b><table class="pjt"><tr>${s.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>${s.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${s.head.length}" class="mu">لا توجد بيانات</td></tr>`}</table></div>`;
+function pjView(d){
+  return `<div class="noprint row"><button class="s" onclick="pjBack()">← رجوع</button><button class="s" onclick="pjExp()">📤 تصدير التقرير</button></div><div class="card"><div class="mu">برج 26 — أبراج الصفوة · ${new Date().toLocaleDateString('ar-EG')}</div><h2 style="margin-top:4px">${esc(d.title)}</h2>${d.sum.map(r=>`<div class="row"><span>${esc(r[0])}</span><b>${esc(r[1])}</b></div>`).join('')}</div>`
+    +d.secs.map(s=>s.all?`<div class="pjp">${pjTbl(s)}</div>`:pjTbl(s)).join('');
+}
+window.pjExp=()=>{
+  const o=document.createElement('div');o.id='pjem';
+  o.style.cssText='position:fixed;inset:0;background:#000a;z-index:20;display:flex;align-items:center;justify-content:center;padding:20px';
+  o.innerHTML=`<div class="card" style="width:100%;max-width:360px"><h2 style="margin-top:0">تصدير التقرير</h2><button onclick="pjDo(1)">📊 Excel</button><button onclick="pjDo(2)">📄 PDF</button><button class="s" style="width:100%" onclick="document.getElementById('pjem').remove()">إلغاء</button></div>`;
+  o.onclick=e=>{if(e.target===o)o.remove()};
+  document.body.appendChild(o);
+};
+window.pjDo=k=>{
+  const m=document.getElementById('pjem');if(m)m.remove();
+  if(k===2)return setTimeout(()=>window.print(),150);
+  const d=pjRep();
+  const go=()=>{
+    const wb=XLSX.utils.book_new();wb.Workbook={Views:[{RTL:true}]};
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([[d.title],...d.sum]),'ملخص');
+    d.secs.forEach((s,i)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([s.head,...s.rows]),(s.name||'ورقة'+i).replace(/[\\\/?*\[\]:]/g,'').slice(0,28)));
+    XLSX.writeFile(wb,'project-report.xlsx');
+  };
+  if(window.XLSX)return go();
+  const sc=document.createElement('script');
+  sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  sc.onload=go;sc.onerror=()=>alert('تعذر تحميل مكتبة Excel، تحقق من الإنترنت');
+  document.head.appendChild(sc);
+};
+
+/* المدير: إدارة طلبات مشروع */
+function pjAdminProj(){
+  if(pjSel==='*')return pjView(pjRep());
+  const p=S.pj.find(x=>x.id===pjSel);
+  if(!p){return '<div class="mu">جارٍ التحميل…</div><button class="s" onclick="pjBack()">← رجوع</button>'}
+  const rk={pending:0,paid:1,new:2,done:3};
+  const os=S.po.filter(x=>x.pid===p.id&&x.status!=='cancelled'&&(pjFl==='all'||x.status===pjFl)).sort((a,b)=>(rk[a.status]-rk[b.status])||pjSort(a,b));
+  const fl=[['all','كل الطلبات'],['pending','بانتظار المراجعة'],['new','غير مسدد'],['paid','بانتظار التسليم'],['done','تم التسليم']];
+  const cards=os.map(o=>{
+    const st=PS[o.status],u=pjUser(o.unit);
+    return `<div class="card"><div class="row"><b>${esc(ulabel(o.unit))}${u.name?' — '+esc(u.name):''}</b><b class="${st[1]}">${st[0]}</b></div><div>${esc(pjLine(o))}</div><div class="mu">${o.kind==='base'?'الطلب الأساسي':'طلب إضافات'} · الإجمالي <b>${o.total}</b> جنيه</div><div>${o.receipt?`<button class="s" onclick="pjRc('${o.id}')">عرض الإيصال</button>`:''}${o.status==='new'||o.status==='pending'?`<button class="s" onclick="pjSet('${o.id}','paid')">✓ تأكيد استلام المبلغ</button>`:''}${o.status==='pending'?`<button class="s" onclick="pjSet('${o.id}','new')">✕ رفض الإيصال</button>`:''}${o.status==='paid'?`<button class="s" onclick="pjSet('${o.id}','done')">📦 تأكيد التسليم/التنفيذ</button>`:''}${o.status!=='done'?`<button class="d" onclick="pjSet('${o.id}','cancelled')">إلغاء الطلب</button>`:''}</div></div>`;
+  }).join('')||'<div class="mu">لا توجد طلبات</div>';
+  return pjView(pjRep())+`<div class="noprint"><h2>إدارة الطلبات</h2><select onchange="pjFilt(this.value)">${fl.map(f=>`<option value="${f[0]}" ${pjFl===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select>${cards}</div>`;
+}
+window.pjFilt=v=>{pjFl=v;pjRe()};
+window.pjRc=id=>{
+  const o=S.po.find(x=>x.id===id);if(!o||!o.receipt)return;
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;inset:0;background:#000d;display:flex;align-items:center;justify-content:center;z-index:30';
+  d.innerHTML='<img src="'+o.receipt+'" style="max-width:95%;max-height:90%">';
+  d.onclick=()=>d.remove();document.body.appendChild(d);
+};
+window.pjSet=(id,s)=>{
+  const o=S.po.find(x=>x.id===id);if(!o)return;
+  if(s==='cancelled'&&!confirm('إلغاء هذا الطلب؟'))return;
+  const u={status:s};
+  if(s==='new')u.receipt='';
+  if(s==='paid')u.paidAt=today();
+  if(s==='done')u.doneAt=today();
+  wr(async()=>{await updateDoc(doc(db,'orders',id),u);if(s==='done')pjMsg(o)});
+};
+function pjMsg(o){
+  const u=pjUser(o.unit),ph=pjWa(u.contactPhone);
+  if(!ph)return alert('تم تسجيل التسليم. لا يوجد رقم تواصل لهذه الوحدة، أضفه من تبويب السكان.');
+  if(!confirm('تم تسجيل التسليم. هل تريد فتح واتساب لإرسال رسالة التأكيد؟'))return;
+  const msg='السيد/ '+(u.name||'الساكن')+' — '+ulabel(o.unit)+'\nتم تسليم/تنفيذ طلبكم في مشروع «'+o.pname+'» ✅\nالتفاصيل: '+pjLine(o)+'\nالإجمالي المسدد: '+o.total+' جنيه\nشكرًا لكم.\nإدارة برج 26 — أبراج الصفوة';
+  window.open('https://wa.me/'+ph+'?text='+encodeURIComponent(msg),'_blank');
+}
+
+/* الساكن */
+function pjRes(){
+  const ps=S.pj.slice().sort((a,b)=>b.ts-a.ts).filter(p=>p.shops||!/^S/.test(me.unit));
+  return ps.map(pjResCard).join('')||'<div class="mu">لا توجد مشاريع حاليًا</div>';
+}
+function pjResCard(p){
+  const os=S.po.filter(x=>x.pid===p.id&&x.unit===me.unit&&x.status!=='cancelled').sort((a,b)=>a.ts-b.ts);
+  const base=os.find(x=>x.kind==='base');
+  let h=`<div class="card"><div class="row"><b>${esc(p.name)}</b><span class="mu">${p.mandatory?'إجباري':'اختياري'}${p.open?'':' · مغلق'}</span></div>${p.desc?`<div>${esc(p.desc).replace(/\n/g,'<br>')}</div>`:''}<div class="mu">التكلفة الأساسية: ${p.base} جنيه${p.baseDesc?' — '+esc(p.baseDesc):''}${p.deadline?' · آخر موعد: '+esc(p.deadline):''}</div>`;
+  if(!base&&!p.mandatory&&p.open)h+=`<button onclick="pjJoin('${p.id}')">أرغب في المشاركة</button>`;
+  h+=os.map(o=>pjOrd(o,p)).join('');
+  if(base&&base.status!=='new'&&(p.addons||[]).length&&p.open&&!os.some(x=>x.kind==='extra'&&x.status==='new'))h+=`<button class="s" onclick="pjExtra('${p.id}')">+ طلب إضافات جديد</button>`;
+  return h+'</div>';
+}
+function pjOrd(o,p){
+  const st=PS[o.status];
+  let h=`<div style="border-top:1px solid var(--bd);margin-top:8px;padding-top:8px"><div class="row"><b>${o.kind==='base'?'طلبي':'طلب إضافات'}</b><b class="${st[1]}">${st[0]}</b></div>`;
+  if(o.status==='new'){
+    const dr=pjDr[o.id]||(pjDr[o.id]=Object.fromEntries((p.addons||[]).map((a,i)=>[i,((o.items||[]).find(x=>x.n===a.n)||{}).q||0])));
+    h+=(o.kind==='base'?`<div class="row"><span>${esc(o.items[0].n)}</span><span>${o.items[0].p} جنيه</span></div>`:'')
+      +(p.addons||[]).map((a,i)=>`<div class="row"><span>${esc(a.n)} <span class="mu">${a.p} جنيه (حتى ${a.m})</span></span><span><button class="s" onclick="pjQ('${o.id}',${i},-1,${a.m})">−</button> <b>${dr[i]}</b> <button class="s" onclick="pjQ('${o.id}',${i},1,${a.m})">+</button></span></div>`).join('')
+      +`<h2>الإجمالي: ${pjCalc(o,p)} جنيه</h2><button class="s" style="width:100%" onclick="pjSave('${o.id}')">💾 حفظ الاختيارات</button><button onclick="pjPick('${o.id}')">📷 رفع إيصال التحويل</button>`;
+  }else h+=`<div class="mu">${esc(pjLine(o))}</div><div>الإجمالي: <b>${o.total}</b> جنيه</div>`;
+  return h+'</div>';
+}
+window.pjQ=(id,i,d,m)=>{const dr=pjDr[id];if(!dr)return;dr[i]=Math.max(0,Math.min(m,(dr[i]||0)+d));pjRe()};
+window.pjSave=id=>{const b=pjBuild(id);wr(()=>updateDoc(doc(db,'orders',id),{items:b.items,total:b.total})).then(()=>alert('تم الحفظ'))};
+window.pjJoin=pid=>{
+  const p=S.pj.find(x=>x.id===pid);if(!p)return;
+  wr(()=>setDoc(doc(db,'orders',pid+'_'+me.unit),{pid,pname:p.name,unit:me.unit,kind:'base',items:[{n:p.name+' (الأساسي'+(p.baseDesc?' — '+p.baseDesc:'')+')',p:p.base,q:1,base:1}],total:p.base,status:'new',ts:Date.now()}));
+};
+window.pjExtra=pid=>{
+  const p=S.pj.find(x=>x.id===pid);if(!p)return;
+  wr(()=>setDoc(doc(db,'orders',pid+'_'+me.unit+'_'+uidg()),{pid,pname:p.name,unit:me.unit,kind:'extra',items:[],total:0,status:'new',ts:Date.now()}));
+};
+window.pjPick=id=>{
+  if(!(pjBuild(id).total>0))return alert('اختر بندًا أولًا');
+  const f=document.createElement('input');f.type='file';f.accept='image/*';
+  f.onchange=()=>f.files[0]&&pjUp(id,f.files[0]);f.click();
+};
+function pjUp(id,file){
+  const im=new Image();
+  im.onload=()=>{
+    const k=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');
+    c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    const r=c.toDataURL('image/jpeg',.6);
+    if(r.length>800000)return alert('الصورة كبيرة، جرّب صورة أخرى');
+    const b=pjBuild(id);
+    wr(()=>updateDoc(doc(db,'orders',id),{items:b.items,total:b.total,status:'pending',receipt:r})).then(()=>alert('تم رفع الإيصال وسيُراجع قريبًا'));
+  };
+  im.src=URL.createObjectURL(file);
+}
+pjW();pjSync();
 </script>
 </body>
 </html>
