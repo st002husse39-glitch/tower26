@@ -944,15 +944,90 @@ function pjResCard(p){
   return h+'</div>';
 }
 function pjOrd(o,p){
-  const st=PS[o.status];
-  let h=`<div style="border-top:1px solid var(--bd);margin-top:8px;padding-top:8px"><div class="row"><b>${o.kind==='base'?'طلبي':'طلب إضافات'}</b><b class="${st[1]}">${st[0]}</b></div>`;
-  if(o.status==='new'||
-     o.status==='draft'){
-    const dr=pjDr[o.id]||(pjDr[o.id]=Object.fromEntries((p.addons||[]).map((a,i)=>[i,((o.items||[]).find(x=>x.n===a.n)||{}).q||0])));
-    h+=(o.kind==='base'?`<div class="row"><span>${esc(o.items[0].n)}</span><span>${o.items[0].p} جنيه</span></div>`:'')
-      +(p.addons||[]).map((a,i)=>`<div class="row"><span>${esc(a.n)} <span class="mu">${a.p} جنيه (حتى ${a.m})</span></span><span><button class="s" onclick="pjQ('${o.id}',${i},-1,${a.m})">−</button> <b>${dr[i]}</b> <button class="s" onclick="pjQ('${o.id}',${i},1,${a.m})">+</button></span></div>`).join('')
-      +`<h2>الإجمالي: ${pjCalc(o,p)} جنيه</h2><button class="s" style="width:100%" onclick="pjSave('${o.id}')">💾 حفظ الاختيارات</button><button onclick="pjPick('${o.id}')">📷 رفع إيصال التحويل</button>`;
-  }else h+=`<div class="mu">${esc(pjLine(o))}</div><div>الإجمالي: <b>${o.total}</b> جنيه</div>`;
+  const st=PS[o.status]||['مسودة','mu'];
+
+  let h=`
+    <div style="border-top:1px solid var(--bd);margin-top:8px;padding-top:8px">
+      <div class="row">
+        <b>${o.kind==='base'?'طلبي':'طلب إضافات'}</b>
+        <b class="${st[1]}">${st[0]}</b>
+      </div>
+  `;
+
+  if(o.status==='new'||o.status==='draft'){
+    const dr=pjDr[o.id]||(pjDr[o.id]=Object.fromEntries(
+      (p.addons||[]).map((a,i)=>[
+        i,
+        ((o.items||[]).find(x=>x.n===a.n)||{}).q||0
+      ])
+    ));
+
+    h+=
+      (
+        o.kind==='base'
+          ? `<div class="row">
+               <span>${esc(o.items[0].n)}</span>
+               <span>${o.items[0].p} جنيه</span>
+             </div>`
+          : ''
+      )
+
+      +(p.addons||[]).map((a,i)=>`
+        <div class="row">
+          <span>
+            ${esc(a.n)}
+            <span class="mu">
+              ${a.p} جنيه (حتى ${a.m})
+            </span>
+          </span>
+
+          <span>
+            <button
+              class="s"
+              onclick="pjQ('${o.id}',${i},-1,${a.m})"
+            >
+              −
+            </button>
+
+            <b>${dr[i]}</b>
+
+            <button
+              class="s"
+              onclick="pjQ('${o.id}',${i},1,${a.m})"
+            >
+              +
+            </button>
+          </span>
+        </div>
+      `).join('')
+
+      +`<h2>الإجمالي: ${pjCalc(o,p)} جنيه</h2>`
+
+      +`<button
+           class="s"
+           style="width:100%"
+           onclick="pjSave('${o.id}')"
+        >
+           حفظ الاختيارات
+        </button>`
+
+      +`<div class="mu">
+           بعد حفظ الاختيارات، انتقل إلى تبويب «رسومي»
+           لرفع إيصال التحويل.
+        </div>`;
+  }else{
+    h+=`
+      <div class="mu">
+        ${esc(pjLine(o))}
+      </div>
+
+      <div>
+        الإجمالي:
+        <b>${o.total||0}</b> جنيه
+      </div>
+    `;
+  }
+
   return h+'</div>';
 }
 window.pjQ=(id,i,d,m)=>{const dr=pjDr[id];if(!dr)return;dr[i]=Math.max(0,Math.min(m,(dr[i]||0)+d));pjRe()};
