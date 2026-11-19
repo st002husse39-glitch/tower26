@@ -957,14 +957,71 @@ window.pjRc=id=>{
   d.onclick=()=>d.remove();document.body.appendChild(d);
 };
 window.pjSet=(id,s)=>{
-  const o=S.po.find(x=>x.id===id);if(!o)return;
+  const o=S.po.find(x=>x.id===id);
+  if(!o)return;
+
   if(s==='cancelled'&&!confirm('إلغاء هذا الطلب؟'))return;
-  const u={status:s};
-  if(s==='new')u.receipt='';
-  if(s==='paid')u.paidAt=today();
-  if(s==='done')u.doneAt=today();
-  wr(async()=>{await updateDoc(doc(db,'orders',id),u);if(s==='done')pjMsg(o)});
+
+  const data={status:s};
+
+  if(s==='new'){
+    data.receipt='';
+  }
+
+  if(s==='paid'){
+    data.paidAt=today();
+  }
+
+  if(s==='done'){
+    data.doneAt=today();
+  }
+
+  wr(async()=>{
+    await updateDoc(
+      doc(db,'orders',id),
+      data
+    );
+
+    if(s==='paid'){
+      pjPaidMsg(o);
+    }
+
+    if(s==='done'){
+      pjMsg(o);
+    }
+  });
 };
+ function pjPaidMsg(o){
+  const u=pjUser(o.unit);
+  const ph=pjWa(u.contactPhone);
+
+  if(!ph){
+    return alert(
+      'تم تأكيد استلام المبلغ، لكن لا يوجد رقم تواصل لهذه الوحدة. أضف الرقم من تبويب السكان.'
+    );
+  }
+
+  if(!confirm('تم تأكيد استلام المبلغ. هل تريد فتح واتساب لإرسال رسالة التأكيد؟')){
+    return;
+  }
+
+  const msg=
+    'السيد/ '+(u.name||'الساكن')+
+    ' — '+ulabel(o.unit)+
+    '\nتم استلام التحويل الخاص بطلبكم في مشروع «'+(o.pname||'مشروع')+'» ✅'+
+    '\nنوع الطلب: '+(o.kind==='base'?'التكلفة الأساسية للمشروع':'إضافات طلبها الساكن')+
+    '\nالتفاصيل: '+(pjLine(o)||'لا توجد تفاصيل إضافية')+
+    '\nالإجمالي المستلم: '+(o.total||0)+' جنيه'+
+    '\nحالة الطلب: تم استلام المبلغ وبانتظار التنفيذ.'+
+    '\nشكرًا لكم.'+
+    '\nإدارة برج 26 — أبراج الصفوة';
+
+  window.open(
+    'https://wa.me/'+ph+'?text='+encodeURIComponent(msg),
+    '_blank'
+  );
+ }
+ 
 function pjMsg(o){
   const u=pjUser(o.unit),ph=pjWa(u.contactPhone);
   if(!ph)return alert('تم تسجيل التسليم. لا يوجد رقم تواصل لهذه الوحدة، أضفه من تبويب السكان.');
