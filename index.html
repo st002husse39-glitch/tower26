@@ -603,6 +603,42 @@ function repSync(){
 }
 window.rpSet=(k,val)=>{rp[k]=val;repMo.disconnect();try{repRender()}finally{repMo.takeRecords();repWatch()}};
 repSync();
+ /* ===== مديرون متعددون ===== */
+onAuthStateChanged(auth,u=>{
+  if(!u)return;
+  onSnapshot(doc(db,'users',u.uid),s=>{
+    if(!auth.currentUser||auth.currentUser.uid!==u.uid)return;
+    if(s.exists()&&s.data().role==='admin'&&!admin){
+      admin=true;
+      if(me){unsubs.forEach(f=>f());unsubs=[];ready={};startData();draw()}
+    }
+  },()=>{});
+});
+function admUI(){
+  if(!admin||tab!=='res')return;
+  const v=document.getElementById('v');
+  if(!v||v.querySelector('#adm'))return;
+  const ads=S.users.filter(x=>x.role==='admin');
+  const c=document.createElement('div');
+  c.className='card';c.id='adm';
+  c.innerHTML='<b>المديرون</b>'
+    +ads.map(a=>`<div class="row"><span>${esc(a.name)} <span class="mu">${esc(a.username)}</span></span>${a.username==='admin'?'':`<button class="d" onclick="del('users','${a.id}')">إيقاف</button>`}</div>`).join('')
+    +'<input id="an" placeholder="اسم المدير"><input id="au" placeholder="اسم المستخدم (إنجليزي)" autocapitalize="none"><input id="ap" placeholder="كلمة المرور (6 أحرف على الأقل)"><button onclick="addAdm()">إنشاء حساب مدير</button>';
+  v.appendChild(c);
+}
+new MutationObserver(admUI).observe(document.getElementById('app'),{childList:true,subtree:true});
+window.addAdm=()=>{
+  const n=$('#an').value.trim(),u=$('#au').value.trim().toLowerCase(),p=$('#ap').value;
+  if(!n||!/^[a-z0-9._-]+$/.test(u)||p.length<6)return alert('أكمل الحقول: اسم مستخدم إنجليزي وكلمة مرور 6 أحرف على الأقل');
+  wr(async()=>{
+    const sa=getAuth(initializeApp(CFG,'adm'+uidg()));
+    const c=await createUserWithEmailAndPassword(sa,u+DOMAIN,p);
+    await signOut(sa);
+    await setDoc(doc(db,'users',c.user.uid),{name:n,unit:'',username:u,role:'admin'});
+    alert('تم إنشاء حساب المدير');
+  });
+};
+admUI();
 </script>
 </body>
 </html>
