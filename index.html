@@ -1031,7 +1031,34 @@ function pjOrd(o,p){
   return h+'</div>';
 }
 window.pjQ=(id,i,d,m)=>{const dr=pjDr[id];if(!dr)return;dr[i]=Math.max(0,Math.min(m,(dr[i]||0)+d));pjRe()};
-window.pjSave=id=>{const b=pjBuild(id);wr(()=>updateDoc(doc(db,'orders',id),{items:b.items,total:b.total})).then(()=>alert('تم الحفظ'))};
+window.pjSave=async id=>{
+  const b=pjBuild(id);
+
+  try{
+    await updateDoc(
+      doc(db,'orders',id),
+      {
+        items:b.items,
+        total:b.total,
+        status:'draft'
+      }
+    );
+
+    const local=S.po.find(x=>x.id===id);
+
+    if(local){
+      local.items=b.items;
+      local.total=b.total;
+      local.status='draft';
+    }
+
+    alert('تم حفظ الاختيارات كمسودة. انتقل إلى تبويب رسومي لمراجعة المديونية ورفع الإيصال.');
+
+    pjRe();
+  }catch(e){
+    err(e);
+  }
+};
 window.pjJoin=pid=>{
   const p=S.pj.find(x=>x.id===pid);if(!p)return;
   wr(()=>setDoc(doc(db,'orders',pid+'_'+me.unit),{pid,pname:p.name,unit:me.unit,kind:'base',items:[{n:p.name+' (الأساسي'+(p.baseDesc?' — '+p.baseDesc:'')+')',p:p.base,q:1,base:1}],total:p.base,status:'draft',ts:Date.now()}));
