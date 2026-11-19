@@ -463,73 +463,7 @@ vDues=function(){
   _vD2();
 
   const projectOrders=(S.po||[])
-    .filter(x=>x.unit===me.unit&&x.status!=='cancelled')
-    .sort((a,b)=>(a.ts||0)-(b.ts||0));
 
-  const projectOwe=projectOrders
-    .filter(x=>x.status==='new'||x.status==='draft')
-    .reduce((sum,x)=>sum+(+x.total||0),0);
-
-  const monthlyOwe=S.dues
-    .filter(x=>x.status==='unpaid')
-    .reduce((sum,x)=>sum+(+x.amount||0),0);
-
-  const totalOwe=monthlyOwe+projectOwe;
-
-  const totalBox=document.querySelector('#v .card h1');
-
-  if(totalBox){
-    totalBox.textContent=totalOwe+' جنيه';
-    totalBox.className=totalOwe?'bad':'ok';
-  }
-
-  document.querySelectorAll('#v .card').forEach(c=>{
-    const r=c.querySelector('.row');
-    const s=r&&r.querySelector('span');
-
-    if(!s)return;
-
-    const x=S.dues.find(d=>
-      d.desc&&s.textContent.trim().startsWith(d.month+' ')
-    );
-
-    if(x){
-      const e=document.createElement('div');
-      e.className='mu';
-      e.style.margin='6px 0';
-      e.textContent='📝 '+x.desc;
-      r.after(e);
-    }
-  });
-
-  const projectCards=projectOrders.map(o=>{
-    const status=PS[o.status]||['غير مسدد','bad'];
-    const canUpload=o.status==='new'||o.status==='draft';
-
-    return `
-      <div class="card">
-        <div class="row">
-          <span>
-            <b>${esc(o.pname||'مشروع')}</b>
-          </span>
-          <b class="${status[1]}">${status[0]}</b>
-        </div>
-
-        <div class="mu">
-          ${o.kind==='base'?'التكلفة الأساسية':'إضافات طلبها الساكن'}
-          · ${o.total||0} جنيه
-        </div>
-
-        ${
-          canUpload
-            ? `<button onclick="pjPick('${o.id}')">
-                 📷 رفع إيصال التحويل
-               </button>`
-            : ''
-        }
-
-        ${
-          o.status==='pending'
 const _vD2=vDues;
 
 vDues=function(){
