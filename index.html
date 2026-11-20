@@ -295,6 +295,17 @@ function vDuesA(){
                    </button>`
                 : ''
             }
+            
+            ${
+  superadmin&&x.status==='paid'
+    ? `<button
+         class="d"
+         onclick="setD('${x.id}','unpaid')"
+       >
+         إعادة إلى غير مدفوع
+       </button>`
+    : ''
+}
 
             ${
               x.status==='pending'
