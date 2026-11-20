@@ -301,9 +301,65 @@ function vDuesA(){
   `;
 }
 
-window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
-window.genDues=()=>{const a=+$('#am').value,t=$('#sc').value;if(!a)return alert('أدخل المبلغ');
-  wr(async()=>{const b=writeBatch(db);UNITS.filter(u=>u.t===t).forEach(u=>{const id=u.id+'_'+M;if(!S.dues.find(x=>x.id===id))b.set(doc(db,'dues',id),{unit:u.id,month:M,amount:a,status:'unpaid'})});await b.commit()})};
+window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;window.genDues=()=>{
+  if(!superadmin){
+    return alert('ليس لديك صلاحية إضافة رسوم جديدة');
+  }
+
+  const amount=+$('#am').value;
+  const type=$('#sc').value;
+
+  if(!amount||amount<=0){
+    return alert('أدخل مبلغًا صحيحًا');
+  }
+
+  const units=UNITS.filter(u=>u.t===type);
+
+  if(!units.length){
+    return alert('لا توجد وحدات لهذا النوع');
+  }
+
+  const batchId='dues_'+M+'_'+type+'_'+uidg();
+  const createdAt=Date.now();
+
+  wr(async()=>{
+    const b=writeBatch(db);
+    let count=0;
+
+    units.forEach(u=>{
+      const id=u.id+'_'+M;
+
+      if(!S.dues.find(x=>x.id===id)){
+        b.set(
+          doc(db,'dues',id),
+          {
+            unit:u.id,
+            month:M,
+            amount,
+            status:'unpaid',
+            batchId,
+            batchType:type,
+            createdAt
+          }
+        );
+
+        count++;
+      }
+    });
+
+    if(!count){
+      return alert('توجد رسوم مضافة بالفعل لهذا الشهر لهذه الوحدات');
+    }
+
+    await b.commit();
+
+    alert(
+      'تمت إضافة الرسوم إلى '+count+
+      ' وحدة، وتم حفظها كدفعة واحدة.'
+    );
+  });
+};
+
 window.savePay=()=>wr(()=>setDoc(doc(db,'settings','pay'),{text:$('#pt').value}));
 window.setD=(id,s)=>wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:today()}:{status:s,receipt:'',note:''}));
 window.rc=id=>{$('#oi').src=S.dues.find(x=>x.id===id).receipt;$('#ov').style.display='flex'};
