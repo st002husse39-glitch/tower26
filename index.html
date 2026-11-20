@@ -301,7 +301,7 @@ function vDuesA(){
 }
 
             ${
-  x.status==='pending'
+  !superadmin&&x.status==='pending'
     ? `<button
          class="s"
          onclick="confirmRejectReceipt('${x.id}')"
@@ -310,6 +310,7 @@ function vDuesA(){
        </button>`
     : ''
 }
+
 
           </div>
         </div>
