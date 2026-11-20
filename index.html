@@ -300,7 +300,7 @@ function vDuesA(){
   superadmin&&x.status==='paid'
     ? `<button
          class="d"
-         onclick="setD('${x.id}','unpaid')"
+         onclick="confirmDuesReset('${x.id}')"
        >
          إعادة إلى غير مدفوع
        </button>`
@@ -329,6 +329,32 @@ function vDuesA(){
 window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
 window.savePay=()=>wr(()=>setDoc(doc(db,'settings','pay'),{text:$('#pt').value}));
 window.setD=(id,s)=>wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:today()}:{status:s,receipt:'',note:''}));
+window.confirmDuesReset=id=>{
+  if(!superadmin){
+    return alert('ليس لديك صلاحية إعادة حالة الرسم');
+  }
+
+  const d=S.dues.find(x=>x.id===id);
+
+  if(!d){
+    return alert('لم يتم العثور على الرسم المطلوب');
+  }
+
+  const ok=confirm(
+    'تنبيه: أنت على وشك تغيير حالة الرسم من «مدفوع» إلى «غير مدفوع».'+
+    '\n\nالوحدة: '+ulabel(d.unit)+
+    '\nالشهر: '+d.month+
+    '\nالمبلغ: '+d.amount+' جنيه'+
+    '\n\nسيتم أيضًا إزالة إيصال التحويل المرتبط بهذا الرسم. هل تريد المتابعة؟'
+  );
+
+  if(!ok){
+    return;
+  }
+
+  setD(id,'unpaid');
+};
+
 window.rc=id=>{$('#oi').src=S.dues.find(x=>x.id===id).receipt;$('#ov').style.display='flex'};
 
 function vReq(){
