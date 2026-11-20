@@ -279,10 +279,10 @@ function vDuesA(){
             }
 
             ${
-              x.status!=='paid'
+              !superadmin&&x.status!=='paid'
                 ? `<button
                      class="s"
-                     onclick="setD('${x.id}','paid')"
+                     onclick="confirmCashDue('${x.id}')"
                    >
                      ✓ تأكيد الدفع
                    </button>`
@@ -322,6 +322,30 @@ function vDuesA(){
 window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
 window.savePay=()=>wr(()=>setDoc(doc(db,'settings','pay'),{text:$('#pt').value}));
 window.setD=(id,s)=>wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:today()}:{status:s,receipt:'',note:''}));
+window.confirmCashDue=id=>{
+  if(superadmin){
+    return alert('السوبر يوزر لا يملك صلاحية تأكيد التحصيل النقدي');
+  }
+
+  const d=S.dues.find(x=>x.id===id);
+
+  if(!d){
+    return alert('لم يتم العثور على الرسم المطلوب');
+  }
+
+  const ok=confirm(
+    'تنبيه: أنت على وشك تأكيد تحصيل مبلغ الرسوم نقديًا.'
+    +'\n\nالوحدة: '+ulabel(d.unit)
+    +'\nالشهر: '+d.month
+    +'\nالمبلغ: '+d.amount+' جنيه'
+    +'\n\nهل تريد تأكيد التنفيذ؟'
+  );
+
+  if(!ok)return;
+
+  setD(id,'paid');
+};
+
 window.confirmRejectReceipt=id=>{
   if(!admin){
     return alert('ليس لديك صلاحية رفض الإيصال');
@@ -1524,7 +1548,7 @@ function pjAdminProj(){
   const fl=[['all','كل الطلبات'],['pending','بانتظار المراجعة'],['new','غير مسدد'],['paid','بانتظار التسليم'],['done','تم التسليم']];
   const cards=os.map(o=>{
     const st=PS[o.status],u=pjUser(o.unit);
-    return `<div class="card"><div class="row"><b>${esc(ulabel(o.unit))}${u.name?' — '+esc(u.name):''}</b><b class="${st[1]}">${st[0]}</b></div><div>${esc(pjLine(o))}</div><div class="mu">${o.kind==='base'?'الطلب الأساسي':'طلب إضافات'} · الإجمالي <b>${o.total}</b> جنيه</div><div>${o.receipt?`<button class="s" onclick="pjRc('${o.id}')">عرض الإيصال</button>`:''}${o.status==='new'||o.status==='pending'?`<button class="s" onclick="pjSet('${o.id}','paid')">✓ تأكيد استلام المبلغ</button>`:''}${o.status==='pending'?`<button class="s" onclick="pjSet('${o.id}','new')">✕ رفض الإيصال</button>`:''}${o.status==='paid'?`<button class="s" onclick="pjSet('${o.id}','done')">📦 تأكيد التسليم/التنفيذ</button>`:''}</div></div>`;
+    return `<div class="card"><div class="row"><b>${esc(ulabel(o.unit))}${u.name?' — '+esc(u.name):''}</b><b class="${st[1]}">${st[0]}</b></div><div>${esc(pjLine(o))}</div><div class="mu">${o.kind==='base'?'الطلب الأساسي':'طلب إضافات'} · الإجمالي <b>${o.total}</b> جنيه</div><div>${o.receipt?`<button class="s" onclick="pjRc('${o.id}')">عرض الإيصال</button>`:''}${!superadmin&&(o.status==='new'||o.status==='pending')?`<button class="s" onclick="confirmCashProject('${o.id}')">✓ تأكيد استلام المبلغ</button>`:''}${o.status==='pending'?`<button class="s" onclick="pjSet('${o.id}','new')">✕ رفض الإيصال</button>`:''}${o.status==='paid'?`<button class="s" onclick="pjSet('${o.id}','done')">📦 تأكيد التسليم/التنفيذ</button>`:''}</div></div>`;
   }).join('')||'<div class="mu">لا توجد طلبات</div>';
   return pjView(pjRep())+`<div class="noprint"><h2>إدارة الطلبات</h2><select onchange="pjFilt(this.value)">${fl.map(f=>`<option value="${f[0]}" ${pjFl===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select>${cards}</div>`;
 }
@@ -1535,6 +1559,32 @@ window.pjRc=id=>{
   d.style.cssText='position:fixed;inset:0;background:#000d;display:flex;align-items:center;justify-content:center;z-index:30';
   d.innerHTML='<img src="'+o.receipt+'" style="max-width:95%;max-height:90%">';
   d.onclick=()=>d.remove();document.body.appendChild(d);
+};
+
+window.confirmCashProject=id=>{
+  if(superadmin){
+    return alert('السوبر يوزر لا يملك صلاحية تأكيد التحصيل النقدي');
+  }
+
+  const o=S.po.find(x=>x.id===id);
+
+  if(!o){
+    return alert('لم يتم العثور على طلب المشروع');
+  }
+
+  const p=S.pj.find(x=>x.id===o.pid);
+
+  const ok=confirm(
+    'تنبيه: أنت على وشك تأكيد تحصيل مبلغ المشروع نقديًا.'
+    +'\n\nالوحدة: '+ulabel(o.unit)
+    +'\nالمشروع: '+((p&&p.name)||o.pname||'مشروع')
+    +'\nالإجمالي: '+(o.total||0)+' جنيه'
+    +'\n\nهل تريد تأكيد التنفيذ؟'
+  );
+
+  if(!ok)return;
+
+  pjSet(id,'paid');
 };
 window.pjSet=(id,s)=>{
   const o=S.po.find(x=>x.id===id);
