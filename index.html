@@ -672,20 +672,70 @@ vDuesA=function(){
   }
 };
 window.genDues=()=>{
-  const a=+$('#am').value,t=$('#sc').value,d=($('#ds')?$('#ds').value:'').trim();
-  if(!a)return alert('أدخل المبلغ');
+  if(!superadmin){
+    return alert('ليس لديك صلاحية إضافة رسوم جديدة');
+  }
+
+  const amount=+$('#am').value;
+  const type=$('#sc').value;
+  const desc=($('#ds')?$('#ds').value:'').trim();
+
+  if(!amount||amount<=0){
+    return alert('أدخل مبلغًا صحيحًا');
+  }
+
+  const units=UNITS.filter(u=>u.t===type);
+
+  if(!units.length){
+    return alert('لا توجد وحدات لهذا النوع');
+  }
+
+  const batchId='dues_'+M+'_'+type+'_'+uidg();
+  const createdAt=Date.now();
+
   wr(async()=>{
-    const b=writeBatch(db);let k=0;
-    UNITS.filter(u=>u.t===t).forEach(u=>{
+    const b=writeBatch(db);
+    let count=0;
+
+    units.forEach(u=>{
       const id=u.id+'_'+M;
+
       if(!S.dues.find(x=>x.id===id)){
-        b.set(doc(db,'dues',id),{unit:u.id,month:M,amount:a,desc:d,status:'unpaid'});k++;
+        b.set(
+          doc(db,'dues',id),
+          {
+            unit:u.id,
+            month:M,
+            amount,
+            desc,
+            status:'unpaid',
+            batchId,
+            batchType:type,
+            createdAt
+          }
+        );
+
+        count++;
       }
     });
-    await b.commit();window._ds='';
-    alert('تمت إضافة الرسوم لـ '+k+' وحدة');
+
+    if(!count){
+      return alert(
+        'توجد رسوم مضافة بالفعل لهذا الشهر لهذه الوحدات'
+      );
+    }
+
+    await b.commit();
+
+    window._ds='';
+
+    alert(
+      'تمت إضافة الرسوم إلى '+count+
+      ' وحدة، وتم حفظها كدفعة واحدة.'
+    );
   });
 };
+
 const _vD2=vDues;
 
 vDues=function(){
