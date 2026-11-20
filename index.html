@@ -308,15 +308,15 @@ function vDuesA(){
 }
 
             ${
-              x.status==='pending'
-                ? `<button
-                     class="s"
-                     onclick="setD('${x.id}','unpaid')"
-                   >
-                     ✕ رفض الإيصال
-                   </button>`
-                : ''
-            }
+  x.status==='pending'
+    ? `<button
+         class="s"
+         onclick="confirmRejectReceipt('${x.id}')"
+       >
+         ✕ رفض الإيصال
+       </button>`
+    : ''
+}
 
           </div>
         </div>
@@ -329,6 +329,85 @@ function vDuesA(){
 window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
 window.savePay=()=>wr(()=>setDoc(doc(db,'settings','pay'),{text:$('#pt').value}));
 window.setD=(id,s)=>wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:today()}:{status:s,receipt:'',note:''}));
+window.confirmRejectReceipt=id=>{
+  if(!admin){
+    return alert('ليس لديك صلاحية رفض الإيصال');
+  }
+
+  const d=S.dues.find(x=>x.id===id);
+
+  if(!d){
+    return alert('لم يتم العثور على الرسم المطلوب');
+  }
+
+  if(d.status!=='pending'){
+    return alert('هذا الرسم ليس في حالة قيد المراجعة');
+  }
+
+  const ok=confirm(
+    'تنبيه: أنت على وشك تغيير حالة الرسم من «قيد المراجعة» إلى «غير مدفوع».'+
+    '\n\nالوحدة: '+ulabel(d.unit)+
+    '\nالشهر: '+d.month+
+    '\nالمبلغ: '+d.amount+' جنيه'+
+    '\n\nسيتم رفض الإيصال وإزالته. هل تريد المتابعة؟'
+  );
+
+  if(!ok){
+    return;
+  }
+
+  wr(async()=>{
+    await updateDoc(
+      doc(db,'dues',id),
+      {
+        status:'unpaid',
+        receipt:'',
+        note:''
+      }
+    );
+
+    const users=S.users.filter(x=>
+      x.role!=='admin'&&
+      x.unit===d.unit
+    );
+
+    const u=
+      users.find(x=>waNum(x.contactPhone))||
+      users[0];
+
+    const ph=waNum(u&&u.contactPhone);
+
+    if(!ph){
+      return alert(
+        'تم رفض الإيصال، لكن لا يوجد رقم تواصل لهذه الوحدة.'
+      );
+    }
+
+    const msg=
+      'السيد/ '+((u&&u.name)||'الساكن')+
+      ' — '+ulabel(d.unit)+
+      '\nتم رفض إيصال التحويل الخاص برسوم شهر '+
+      d.month+
+      ' بمبلغ '+d.amount+
+      ' جنيه.'+
+      '\nبرجاء فتح التطبيق والتأكد من إرفاق إيصال التحويل الخاص بكم بشكل صحيح.'+
+      '\nشكرًا لكم.'+
+      '\nإدارة برج 26 — أبراج الصفوة';
+
+    if(confirm(
+      'تم رفض الإيصال بنجاح. هل تريد فتح واتساب لإبلاغ الساكن؟'
+    )){
+      window.open(
+        'https://wa.me/'+
+        ph+
+        '?text='+
+        encodeURIComponent(msg),
+        '_blank'
+      );
+    }
+  });
+};
+
 window.confirmDuesReset=id=>{
   if(!superadmin){
     return alert('ليس لديك صلاحية إعادة حالة الرسم');
