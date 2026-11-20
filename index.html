@@ -224,6 +224,13 @@ function vDuesA(){
 >
   ترحيل الرسوم القديمة
 </button>
+
+<button
+  class="d"
+  onclick="deleteDuesBatch()"
+>
+  حذف دفعة رسوم
+</button>
       </div>
     `
     : ''
@@ -802,6 +809,105 @@ window.migrateOldDues=()=>{
 
     alert(
       'تم ترحيل المجموعة القديمة بنجاح، وأصبحت مرتبطة بدفعة واحدة.'
+    );
+  });
+};
+window.deleteDuesBatch=()=>{
+  if(!superadmin){
+    return alert('ليس لديك صلاحية حذف الرسوم');
+  }
+
+  const groups={};
+
+  S.dues
+    .filter(x=>x.month===M&&x.batchId)
+    .forEach(x=>{
+      if(!groups[x.batchId]){
+        groups[x.batchId]={
+          id:x.batchId,
+          month:x.month,
+          type:x.batchType||'',
+          amount:x.amount,
+          rows:[]
+        };
+      }
+
+      groups[x.batchId].rows.push(x);
+    });
+
+  const batches=Object.values(groups);
+
+  if(!batches.length){
+    return alert(
+      'لا توجد دفعات مرتبطة بهذا الشهر وقابلة للإدارة'
+    );
+  }
+
+  const list=batches.map((b,i)=>
+    (i+1)+') '+
+    b.month+
+    ' — '+
+    (
+      b.type==='r'
+        ? 'الشقق السكنية'
+        : b.type==='c'
+          ? 'المحلات التجارية'
+          : 'نوع غير محدد'
+    )+
+    ' — '+
+    b.amount+
+    ' جنيه — '+
+    b.rows.length+
+    ' وحدة'
+  ).join('\n');
+
+  const answer=prompt(
+    'اختر رقم الدفعة التي تريد حذفها:\n\n'+
+    list
+  );
+
+  if(answer===null)return;
+
+  const index=Number(answer)-1;
+  const batch=batches[index];
+
+  if(!batch){
+    return alert('رقم الدفعة غير صحيح');
+  }
+
+  const blocked=batch.rows.find(x=>
+    x.status!=='unpaid'||!!x.receipt
+  );
+
+  if(blocked){
+    return alert(
+      'لا يمكن حذف الدفعة؛ لأن أحد رسومها مدفوع أو قيد المراجعة أو لديه إيصال.'
+    );
+  }
+
+  const ok=confirm(
+    'تحذير: سيتم حذف '+
+    batch.rows.length+
+    ' رسمًا لشهر '+
+    batch.month+
+    ' بمبلغ '+
+    batch.amount+
+    ' جنيه نهائيًا. هل أنت متأكد؟'
+  );
+
+  if(!ok)return;
+
+  wr(async()=>{
+    const b=writeBatch(db);
+
+    batch.rows.forEach(x=>{
+      b.delete(doc(db,'dues',x.id));
+    });
+
+    await b.commit();
+
+    alert(
+      'تم حذف دفعة الرسوم بنجاح'
     );
   });
 };
