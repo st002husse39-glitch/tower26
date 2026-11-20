@@ -302,7 +302,7 @@ function vDuesA(){
          class="d"
          onclick="confirmDuesReset('${x.id}')"
        >
-         إعادة إلى غير مدفوع
+         إعادة إلى قيد المراجعة
        </button>`
     : ''
 }
@@ -419,19 +419,35 @@ window.confirmDuesReset=id=>{
     return alert('لم يتم العثور على الرسم المطلوب');
   }
 
+  if(d.status!=='paid'){
+    return alert('هذا الرسم ليس في حالة مدفوع');
+  }
+
   const ok=confirm(
-    'تنبيه: أنت على وشك تغيير حالة الرسم من «مدفوع» إلى «غير مدفوع».'+
-    '\n\nالوحدة: '+ulabel(d.unit)+
-    '\nالشهر: '+d.month+
-    '\nالمبلغ: '+d.amount+' جنيه'+
-    '\n\nسيتم أيضًا إزالة إيصال التحويل المرتبط بهذا الرسم. هل تريد المتابعة؟'
+    'تنبيه: أنت على وشك تغيير حالة الرسم من «مدفوع» إلى «قيد المراجعة».'
+    +'\n\nالوحدة: '+ulabel(d.unit)
+    +'\nالشهر: '+d.month
+    +'\nالمبلغ: '+d.amount+' جنيه'
+    +'\n\nسيظل إيصال التحويل محفوظًا حتى يراجعه المدير العادي. هل تريد المتابعة؟'
   );
 
   if(!ok){
     return;
   }
 
-  setD(id,'unpaid');
+  wr(async()=>{
+    await updateDoc(
+      doc(db,'dues',id),
+      {
+        status:'pending',
+        paidAt:null
+      }
+    );
+
+    alert(
+      'تم تغيير حالة الرسم إلى قيد المراجعة، وأصبح ظاهرًا للمدير العادي.'
+    );
+  });
 };
 
 window.rc=id=>{$('#oi').src=S.dues.find(x=>x.id===id).receipt;$('#ov').style.display='flex'};
