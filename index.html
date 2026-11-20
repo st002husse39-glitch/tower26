@@ -54,8 +54,7 @@ const UNITS=[...Array.from({length:8},(_,i)=>({id:'S'+(i+1),label:'محل '+(i+1
 const ulabel=id=>(UNITS.find(u=>u.id===id)||{label:id||'—'}).label;
 const ST={unpaid:['غير مدفوع','bad'],pending:['قيد المراجعة','wn'],paid:['مدفوع','ok']};
 const RS={new:'جديد',prog:'قيد التنفيذ',done:'تم'};
-
-let me=null,admin=false,tab='ann',M=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],set:{}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
+let me=null,admin=false,superadmin=false,tab='ann',M=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],set:{}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
 const err=e=>alert('تعذر تنفيذ العملية: '+(e.code||e.message));
 const wr=async f=>{try{await f()}catch(e){err(e)}};
 
@@ -80,7 +79,8 @@ function startData(){
 onAuthStateChanged(auth,async u=>{
   unsubs.forEach(f=>f());unsubs=[];ready={};me=null;
   if(!u)return loginView();
-  admin=u.email===ADMIN_EMAIL;
+  superadmin=u.email===ADMIN_EMAIL;
+admin=superadmin;
   unsubs.push(onSnapshot(doc(db,'users',u.uid),async s=>{
     if(!s.exists()){
       if(admin){await setDoc(doc(db,'users',u.uid),{name:'مدير العمارة',role:'admin',unit:'',username:'admin'},{merge:true});return}
@@ -912,10 +912,30 @@ onAuthStateChanged(auth,u=>{
   if(!u)return;
   onSnapshot(doc(db,'users',u.uid),s=>{
     if(!auth.currentUser||auth.currentUser.uid!==u.uid)return;
-    if(s.exists()&&s.data().role==='admin'&&!admin){
-      admin=true;
-      if(me){unsubs.forEach(f=>f());unsubs=[];ready={};startData();draw()}
+    if(s.exists()){
+  const role=s.data().role;
+
+  const nextSuper=
+    auth.currentUser.email===ADMIN_EMAIL
+    || role==='superadmin';
+
+  const nextAdmin=
+    nextSuper
+    || role==='admin';
+
+  if(nextSuper!==superadmin||nextAdmin!==admin){
+    superadmin=nextSuper;
+    admin=nextAdmin;
+
+    if(me){
+      unsubs.forEach(f=>f());
+      unsubs=[];
+      ready={};
+      startData();
+      draw();
     }
+  }
+}
   },()=>{});
 });
 function admUI(){
