@@ -326,7 +326,8 @@ window.togP=id=>wr(()=>updateDoc(doc(db,'polls',id),{open:!S.polls.find(p=>p.id=
 window.vote=(p,i)=>wr(()=>setDoc(doc(db,'votes',p+'_'+auth.currentUser.uid),{poll:p,uid:auth.currentUser.uid,unit:me.unit,choice:i}));
 
 function vRes(){
-  const used=new Set(S.users.map(u=>u.unit));
+  const residentUsers=S.users.filter(u=>u.role==='user');
+const used=new Set(residentUsers.map(u=>u.unit));
 
   $('#v').innerHTML=`
     <div class="card">
@@ -379,11 +380,10 @@ function vRes(){
     </div>
 
     <div class="mu">
-      ${S.users.filter(u=>u.role!=='admin').length} حساب
+      ${residentUsers.length} حساب
     </div>
 
-    ${S.users
-      .filter(u=>u.role!=='admin')
+    ${residentUsers
       .sort((a,b)=>
         (a.unit||'').localeCompare(
           b.unit||'',
