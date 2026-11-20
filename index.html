@@ -1549,7 +1549,7 @@ function pjAdminProj(){
   const fl=[['all','كل الطلبات'],['pending','بانتظار المراجعة'],['new','غير مسدد'],['paid','بانتظار التسليم'],['done','تم التسليم']];
   const cards=os.map(o=>{
     const st=PS[o.status],u=pjUser(o.unit);
-    return `<div class="card"><div class="row"><b>${esc(ulabel(o.unit))}${u.name?' — '+esc(u.name):''}</b><b class="${st[1]}">${st[0]}</b></div><div>${esc(pjLine(o))}</div><div class="mu">${o.kind==='base'?'الطلب الأساسي':'طلب إضافات'} · الإجمالي <b>${o.total}</b> جنيه</div><div>${o.receipt?`<button class="s" onclick="pjRc('${o.id}')">عرض الإيصال</button>`:''}${!superadmin&&(o.status==='new'||o.status==='pending')?`<button class="s" onclick="confirmCashProject('${o.id}')">✓ تأكيد استلام المبلغ</button>`:''}${!superadmin&&o.status==='pending'?`<button class="s" onclick="pjSet('${o.id}','new')">✕ رفض الإيصال</button>`:''}${o.status==='paid'?`<button class="s" onclick="pjSet('${o.id}','done')">📦 تأكيد التسليم/التنفيذ</button>`:''}</div></div>`;
+    return `<div class="card"><div class="row"><b>${esc(ulabel(o.unit))}${u.name?' — '+esc(u.name):''}</b><b class="${st[1]}">${st[0]}</b></div><div>${esc(pjLine(o))}</div><div class="mu">${o.kind==='base'?'الطلب الأساسي':'طلب إضافات'} · الإجمالي <b>${o.total}</b> جنيه</div><div>${o.receipt?`<button class="s" onclick="pjRc('${o.id}')">عرض الإيصال</button>`:''}${!superadmin&&(o.status==='new'||o.status==='pending')?`<button class="s" onclick="confirmCashProject('${o.id}')">✓ تأكيد استلام المبلغ</button>`:''}${!superadmin&&o.status==='pending'?`<button class="s" onclick="pjSet('${o.id}','new')">✕ رفض الإيصال</button>`:''}${o.status==='paid'?`<button class="s" onclick="pjSet('${o.id}','done')">📦 تأكيد التسليم/التنفيذ</button>`:''}${superadmin&&o.status==='paid'?`<button class="d" onclick="confirmProjectReset('${o.id}')">إعادة إلى قيد المراجعة</button>`:''}</div></div>`;
   }).join('')||'<div class="mu">لا توجد طلبات</div>';
   return pjView(pjRep())+`<div class="noprint"><h2>إدارة الطلبات</h2><select onchange="pjFilt(this.value)">${fl.map(f=>`<option value="${f[0]}" ${pjFl===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select>${cards}</div>`;
 }
@@ -1587,6 +1587,50 @@ window.confirmCashProject=id=>{
 
   pjSet(id,'paid');
 };
+ window.confirmProjectReset=id=>{
+  if(!superadmin){
+    return alert('ليس لديك صلاحية إعادة حالة الطلب');
+  }
+
+  const o=S.po.find(x=>x.id===id);
+
+  if(!o){
+    return alert('لم يتم العثور على طلب المشروع');
+  }
+
+  if(o.status!=='paid'){
+    return alert('هذا الطلب ليس في حالة تم استلام المبلغ');
+  }
+
+  const p=S.pj.find(x=>x.id===o.pid);
+
+  const ok=confirm(
+    'تنبيه: أنت على وشك تحويل حالة الطلب من «تم استلام المبلغ» إلى «قيد المراجعة» وإعادته إلى أمين الصندوق للمراجعة.'
+    +'\n\nالوحدة: '+ulabel(o.unit)
+    +'\nالمشروع: '+((p&&p.name)||o.pname||'مشروع')
+    +'\nالإجمالي: '+(o.total||0)+' جنيه'
+    +'\n\nسيظل إيصال التحويل محفوظًا. هل تريد المتابعة؟'
+  );
+
+  if(!ok){
+    return;
+  }
+
+  wr(async()=>{
+    await updateDoc(
+      doc(db,'orders',id),
+      {
+        status:'pending',
+        paidAt:null
+      }
+    );
+
+    alert(
+      'تم تحويل حالة الطلب إلى قيد المراجعة، وأصبح ظاهرًا لأمين الصندوق.'
+    );
+  });
+};
+
 window.pjSet=(id,s)=>{
   const o=S.po.find(x=>x.id===id);
   if(!o)return;
