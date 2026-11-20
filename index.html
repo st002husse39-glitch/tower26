@@ -217,14 +217,7 @@ function vDuesA(){
         <button onclick="genDues()">
           إضافة
         </button>
-        
-        <button
-  class="s"
-  onclick="migrateOldDues()"
->
-  ترحيل الرسوم القديمة
-</button>
-
+         
 <button
   class="d"
   onclick="deleteDuesBatch()"
@@ -823,127 +816,7 @@ window.genDues=()=>{
     );
   });
 };
-window.migrateOldDues=()=>{
-  if(!superadmin){
-    return alert('ليس لديك صلاحية ترحيل الرسوم القديمة');
-  }
 
-  const groups={};
-
-  S.dues
-    .filter(x=>!x.batchId)
-    .forEach(x=>{
-      const unit=UNITS.find(u=>u.id===x.unit);
-      const type=unit?unit.t:'unknown';
-      const desc=x.desc||'';
-
-      const key=[
-        x.month,
-        type,
-        x.amount,
-        desc
-      ].join('|');
-
-      if(!groups[key]){
-        groups[key]={
-          month:x.month,
-          type,
-          amount:x.amount,
-          desc,
-          rows:[]
-        };
-      }
-
-      groups[key].rows.push(x);
-    });
-
-  const batches=Object.values(groups);
-
-  if(!batches.length){
-    return alert(
-      'لا توجد رسوم قديمة تحتاج إلى الترحيل'
-    );
-  }
-
-  const list=batches.map((b,i)=>
-    (i+1)+') '+
-    b.month+
-    ' — '+
-    (b.type==='r'?'الشقق السكنية':b.type==='c'?'المحلات التجارية':'نوع غير محدد')+
-    ' — '+
-    b.amount+
-    ' جنيه — '+
-    b.rows.length+
-    ' وحدة'
-  ).join('\n');
-
-  const answer=prompt(
-    'اختر رقم مجموعة الرسوم القديمة التي تريد ترحيلها:\n\n'+
-    list
-  );
-
-  if(answer===null)return;
-
-  const index=Number(answer)-1;
-  const group=batches[index];
-
-  if(!group){
-    return alert('رقم المجموعة غير صحيح');
-  }
-
-  const blocked=group.rows.find(x=>
-    x.status!=='unpaid'||!!x.receipt
-  );
-
-  if(blocked){
-    return alert(
-      'لا يمكن ترحيل هذه المجموعة؛ لأن بها رسمًا تم دفعه أو رفع إيصال له أو تغيير حالته.'
-    );
-  }
-
-  const ok=confirm(
-    'سيتم ربط '+
-    group.rows.length+
-    ' رسمًا قديمًا في دفعة واحدة لشهر '+
-    group.month+
-    ' بمبلغ '+
-    group.amount+
-    ' جنيه. هل أنت متأكد؟'
-  );
-
-  if(!ok)return;
-
-  const batchId=
-    'dues_'+
-    group.month+
-    '_'+
-    group.type+
-    '_'+
-    uidg();
-
-  const createdAt=Date.now();
-
-  wr(async()=>{
-    const b=writeBatch(db);
-
-    group.rows.forEach(x=>{
-      b.update(
-        doc(db,'dues',x.id),
-        {
-          batchId,
-          batchType:group.type,
-          createdAt
-        }
-      );
-    });
-
-    await b.commit();
-
-    alert(
-      'تم ترحيل المجموعة القديمة بنجاح، وأصبحت مرتبطة بدفعة واحدة.'
-    );
-  });
-};
 window.deleteDuesBatch=()=>{
   if(!superadmin){
     return alert('ليس لديك صلاحية حذف الرسوم');
