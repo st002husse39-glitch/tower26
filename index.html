@@ -104,7 +104,7 @@ window.del=(c,id)=>{if(confirm('تأكيد الحذف؟'))wr(()=>deleteDoc(doc(d
 
 function vAnn(){
   const a=[...S.ann].sort((x,y)=>y.ts-x.ts);
-  $('#v').innerHTML=(admin?`<div class="card"><input id="t" placeholder="عنوان الإعلان"><textarea id="b" rows="3" placeholder="النص"></textarea><button onclick="addAnn()">نشر</button></div>`:'')+'<h2>الإعلانات</h2>'+(a.map(x=>`<div class="card"><div class="row"><b>${esc(x.title)}</b>${admin?`<button class="d" onclick="del('announcements','${x.id}')">حذف</button>`:''}</div><div>${esc(x.body).replace(/\n/g,'<br>')}</div><div class="mu">${esc(x.date)}</div></div>`).join('')||'<div class="mu">لا توجد إعلانات</div>');
+  $('#v').innerHTML=(superadmin?`<div class="card"><input id="t" placeholder="عنوان الإعلان"><textarea id="b" rows="3" placeholder="النص"></textarea><button onclick="addAnn()">نشر</button></div>`:'')+'<h2>الإعلانات</h2>'+(a.map(x=>`<div class="card"><div class="row"><b>${esc(x.title)}</b>${superadmin?`<button class="d" onclick="del('announcements','${x.id}')">حذف</button>`:''}</div><div>${esc(x.body).replace(/\n/g,'<br>')}</div><div class="mu">${esc(x.date)}</div></div>`).join('')||'<div class="mu">لا توجد إعلانات</div>');
 }
 window.addAnn=()=>{const t=$('#t').value.trim();if(t)wr(()=>setDoc(doc(db,'announcements',uidg()),{title:t,body:$('#b').value,date:today(),ts:Date.now()}))};
 
