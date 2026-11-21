@@ -506,6 +506,7 @@ function vRes(){
 const used=new Set(residentUsers.map(u=>u.unit));
 
   $('#v').innerHTML=`
+    $('#v').innerHTML=(superadmin?`
     <div class="card">
       <b>إنشاء حساب ساكن</b>
 
@@ -554,6 +555,11 @@ const used=new Set(residentUsers.map(u=>u.unit));
 
       <button onclick="addRes()">إنشاء الحساب</button>
     </div>
+  `:'')+`
+    <div class="mu">
+      ${residentUsers.length} حساب
+    </div>
+
 
     <div class="mu">
       ${residentUsers.length} حساب
@@ -577,7 +583,7 @@ const used=new Set(residentUsers.map(u=>u.unit));
               </span>
             </span>
 
-            <span>
+            ${superadmin?`<span>
   <button
     class="s"
     onclick="editResident('${x.id}')"
@@ -591,7 +597,7 @@ const used=new Set(residentUsers.map(u=>u.unit));
   >
     إيقاف
   </button>
-</span>
+</span>`:''}
 
           </div>
 
