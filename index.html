@@ -784,15 +784,86 @@ function vMe(){
   const list=[...S.expenses]
     .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
 
-  if(superadmin){
+    if(superadmin){
     $('#v').innerHTML=`
       <div class="card">
-        <h2>مصروفات صندوق العمارة</h2>
+        <h2>مراجعة مصروفات صندوق العمارة</h2>
         <div class="mu">
-          سيتم تجهيز مراجعة المصروفات وحساب رصيد الصندوق في الخطوة التالية.
+          المصروفات المعروضة هنا لا تخصم من الصندوق إلا بعد اعتمادها.
         </div>
       </div>
+
+      ${
+        list.map(x=>`
+          <div class="card">
+            <div class="row">
+              <b>${esc(x.title||'مصروف')}</b>
+
+              <span class="${
+                x.status==='pending'
+                  ? 'wn'
+                  : x.status==='approved'
+                    ? 'ok'
+                    : 'bad'
+              }">
+                ${
+                  x.status==='pending'
+                    ? 'بانتظار المراجعة'
+                    : x.status==='approved'
+                      ? 'معتمد'
+                      : 'مرفوض'
+                }
+              </span>
+            </div>
+
+            <div>
+              القيمة:
+              <b>${esc(x.amount||0)} جنيه</b>
+            </div>
+
+            <div>
+              التاريخ:
+              ${esc(x.spentAt||'—')}
+            </div>
+
+            <div>
+              التفاصيل:
+              ${esc(x.description||'لا توجد تفاصيل')}
+            </div>
+
+            ${
+              x.status==='pending'
+                ? `
+                  <div style="margin-top:10px">
+                    <button
+                      class="s"
+                      onclick="reviewExpense('${x.id}','approved')"
+                    >
+                      اعتماد المصروف
+                    </button>
+
+                    <button
+                      class="d"
+                      onclick="reviewExpense('${x.id}','rejected')"
+                    >
+                      رفض المصروف
+                    </button>
+                  </div>
+                `
+                : ''
+            }
+
+            ${
+              x.reviewNote
+                ? `<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`
+                : ''
+            }
+          </div>
+        `).join('')
+        || '<div class="mu">لا توجد مصروفات مسجلة</div>'
+      }
     `;
+
     return;
   }
 
@@ -875,6 +946,65 @@ function vMe(){
     }
   `;
 }
+
+ window.reviewExpense=(id,status)=>{
+  if(!superadmin){
+    return alert('ليس لديك صلاحية مراجعة المصروفات');
+  }
+
+  const x=S.expenses.find(e=>e.id===id);
+
+  if(!x){
+    return alert('لم يتم العثور على المصروف');
+  }
+
+  if(x.status!=='pending'){
+    return alert('تمت مراجعة هذا المصروف من قبل');
+  }
+
+  const action=status==='approved'
+    ? 'اعتماد هذا المصروف وخصم قيمته من رصيد الصندوق؟'
+    : 'رفض هذا المصروف وعدم خصم قيمته من رصيد الصندوق؟';
+
+  if(!confirm(
+    action
+    +'\n\nالبيان: '+(x.title||'مصروف')
+    +'\nالقيمة: '+(x.amount||0)+' جنيه'
+    +'\nالتاريخ: '+(x.spentAt||'—')
+  )){
+    return;
+  }
+
+  const note=prompt(
+    status==='approved'
+      ? 'ملاحظة الاعتماد، ويمكن تركها فارغة'
+      : 'سبب رفض المصروف'
+  );
+
+  if(note===null){
+    return;
+  }
+
+  wr(async()=>{
+    await updateDoc(
+      doc(db,'expenses',id),
+      {
+        status:status,
+        reviewedBy:auth.currentUser.uid,
+        reviewedAt:Date.now(),
+        reviewNote:note.trim()
+      }
+    );
+
+    alert(
+      status==='approved'
+        ? 'تم اعتماد المصروف، وسيُخصم من رصيد الصندوق.'
+        : 'تم رفض المصروف، ولن يُخصم من رصيد الصندوق.'
+    );
+
+    draw();
+  });
+};
 
  window.addExpense=()=>{
   if(!admin||superadmin){
