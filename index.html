@@ -781,15 +781,142 @@ function vMe(){
   $('#v').innerHTML=`<div class="card"><b>تفعيل الإشعارات</b><div class="mu">على الآيفون: أضف التطبيق للشاشة الرئيسية أولًا.</div><button onclick="enablePush()">🔔 تفعيل</button></div><div class="card"><b>تغيير كلمة المرور</b><input id="op" type="password" placeholder="الحالية"><input id="np" type="password" placeholder="الجديدة (6 أحرف على الأقل)"><button onclick="chPw()">تغيير</button></div>`;
 }
  function vExpenses(){
+  const list=[...S.expenses]
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+
+  if(superadmin){
+    $('#v').innerHTML=`
+      <div class="card">
+        <h2>مصروفات صندوق العمارة</h2>
+        <div class="mu">
+          سيتم تجهيز مراجعة المصروفات وحساب رصيد الصندوق في الخطوة التالية.
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   $('#v').innerHTML=`
     <div class="card">
-      <h2>المصروفات</h2>
-      <div class="mu">
-        سيتم تجهيز شاشة المصروفات في الخطوة التالية.
-      </div>
+      <h2>إدخال مصروف</h2>
+
+      <input
+        id="exTitle"
+        placeholder="نوع المصروف، مثل: فاتورة كهرباء أو صيانة"
+      >
+
+      <input
+        id="exAmount"
+        type="number"
+        min="0.01"
+        step="0.01"
+        placeholder="قيمة المصروف بالجنيه"
+      >
+
+      <textarea
+        id="exDescription"
+        rows="3"
+        placeholder="تفاصيل المصروف أو سبب الدفع"
+      ></textarea>
+
+      <div class="mu">تاريخ المصروف</div>
+
+      <input
+        id="exSpentAt"
+        type="date"
+        value="${new Date().toISOString().slice(0,10)}"
+      >
+
+      <button onclick="addExpense()">
+        حفظ المصروف للمراجعة
+      </button>
     </div>
+
+    <h2>المصروفات التي أدخلتها</h2>
+
+    ${
+      list.map(x=>`
+        <div class="card">
+          <div class="row">
+            <b>${esc(x.title||'مصروف')}</b>
+            <span class="${x.status==='pending'?'wn':x.status==='approved'?'ok':'bad'}">
+              ${
+                x.status==='pending'
+                  ? 'بانتظار المراجعة'
+                  : x.status==='approved'
+                    ? 'معتمد'
+                    : 'مرفوض'
+              }
+            </span>
+          </div>
+
+          <div>
+            القيمة:
+            <b>${esc(x.amount||0)} جنيه</b>
+          </div>
+
+          <div>
+            التاريخ:
+            ${esc(x.spentAt||'—')}
+          </div>
+
+          <div class="mu">
+            ${esc(x.description||'لا توجد تفاصيل')}
+          </div>
+
+          ${
+            x.reviewNote
+              ? `<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`
+              : ''
+          }
+        </div>
+      `).join('')
+      || '<div class="mu">لم تدخل أي مصروفات بعد</div>'
+    }
   `;
- }
+}
+
+ window.addExpense=()=>{
+  if(!admin||superadmin){
+    return alert('إدخال المصروفات متاح للمدير العادي فقط');
+  }
+
+  const title=$('#exTitle').value.trim();
+  const amount=+$('#exAmount').value;
+  const description=$('#exDescription').value.trim();
+  const spentAt=$('#exSpentAt').value;
+
+  if(!title){
+    return alert('اكتب نوع أو سبب المصروف');
+  }
+
+  if(!(amount>0)){
+    return alert('أدخل قيمة صحيحة للمصروف');
+  }
+
+  if(!spentAt){
+    return alert('حدد تاريخ المصروف');
+  }
+
+  wr(async()=>{
+    await setDoc(
+      doc(db,'expenses',uidg()),
+      {
+        title:title,
+        amount:amount,
+        description:description,
+        spentAt:spentAt,
+        status:'pending',
+        createdBy:auth.currentUser.uid,
+        createdAt:Date.now()
+      }
+    );
+
+    alert('تم تسجيل المصروف وإرساله إلى السوبر يوزر للمراجعة');
+    draw();
+  });
+};
+
 window.chPw=()=>wr(async()=>{const u=auth.currentUser;if($('#np').value.length<6)return alert('كلمة المرور قصيرة');await reauthenticateWithCredential(u,EmailAuthProvider.credential(u.email,$('#op').value));await updatePassword(u,$('#np').value);alert('تم التغيير')});
 window.enablePush=async()=>{
   try{if(await Notification.requestPermission()!=='granted')return alert('لم يتم السماح بالإشعارات');
