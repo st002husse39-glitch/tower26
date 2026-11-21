@@ -503,46 +503,6 @@ window.vote=(p,i)=>wr(()=>setDoc(doc(db,'votes',p+'_'+auth.currentUser.uid),{pol
 
 function vRes(){
   const residentUsers=S.users.filter(u=>u.role==='user');
-const used=new Set(residentUsers.map(u=>u.unit));
-
-  $('#v').innerHTML=`
-    $('#v').innerHTML=(superadmin?`
-    <div class="card">
-      <b>إنشاء حساب ساكن</b>
-
-      <select id="un">
-        ${UNITS.map(u=>`
-          <option value="${u.id}">
-            ${u.label}${used.has(u.id)?' (له حساب)':''}
-          </option>
-        `).join('')}
-      </select>
-
-      <select id="rt">
-        <option value="owner">مالك</option>
-        <option value="tenant">مستأجر</option>
-      </select>
-
-      <input id="on" placeholder="اسم المالك">
-
-      <input
-        id="op"
-        type="tel"
-        inputmode="tel"
-        placeholder="رقم هاتف المالك"
-      >
-
-      <input id="tn" placeholder="اسم المستأجر">
-
-      <input
-        id="tp"
-        type="tel"
-        inputmode="tel"
-        placeholder="رقم هاتف المستأجر"
-      >
-
-function vRes(){
-  const residentUsers=S.users.filter(u=>u.role==='user');
   const used=new Set(residentUsers.map(u=>u.unit));
 
   $('#v').innerHTML=(superadmin?`
