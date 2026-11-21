@@ -95,11 +95,25 @@ window.out=()=>signOut(auth);
 function draw(){
   if(!me)return;
   const nAnn=S.ann.filter(a=>a.ts>seen).length;
-  const tabs=admin?[['ann','الإعلانات'],['dues','الرسوم'],['req','الطلبات'],['vote','التصويت'],['res','السكان'],['me','حسابي']]:[['ann','الإعلانات'],['dues','رسومي'],['req','الصيانة'],['vote','التصويت'],['me','حسابي']];
+  const tabs=admin?[['ann','الإعلانات'],['dues','الرسوم'],['req','الطلبات'],...(superadmin?[['vote','التصويت']]:[]),['res','السكان'],['me','حسابي']]:[['ann','الإعلانات'],['dues','رسومي'],['req','الصيانة'],['vote','التصويت'],['me','حسابي']];
   root.innerHTML=`<div class="row"><h1>🏢 برج 26</h1><button class="s" onclick="out()">خروج</button></div><div class="mu">${esc(me.name)} — ${admin?'مدير':ulabel(me.unit)}</div><div id="v"></div><nav>${tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="go('${t[0]}')">${t[1]}${t[0]==='ann'&&nAnn?`<span class="dot">${nAnn}</span>`:''}</button>`).join('')}</nav>`;
   ({ann:vAnn,dues:admin?vDuesA:vDues,req:vReq,vote:vVote,res:vRes,me:vMe}[tab]||vAnn)();
 }
-window.go=t=>{tab=t;if(t==='ann'){seen=Date.now();localStorage.setItem('seen',seen)}draw()};
+window.go=t=>{
+  if(t==='vote'&&admin&&!superadmin){
+    tab='ann';
+    return draw();
+  }
+
+  tab=t;
+
+  if(t==='ann'){
+    seen=Date.now();
+    localStorage.setItem('seen',seen);
+  }
+
+  draw();
+};
 window.del=(c,id)=>{if(confirm('تأكيد الحذف؟'))wr(()=>deleteDoc(doc(db,c,id)))};
 
 function vAnn(){
