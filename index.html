@@ -1861,12 +1861,14 @@ function pjAdminList(){
             فتح
           </button>
 
-          <button
-            class="s"
-            onclick="pjTog('${p.id}')"
-          >
-            ${p.open?'إغلاق الطلب':'إعادة فتح'}
-          </button>
+          ${superadmin?`
+  <button
+    class="s"
+    onclick="pjTog('${p.id}')"
+  >
+    ${p.open?'إغلاق الطلب':'إعادة فتح'}
+  </button>
+`:''}
 
           ${superadmin?`
             <button
