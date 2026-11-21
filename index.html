@@ -74,7 +74,7 @@ function startData(){
   if(admin){sub('dues',c('dues'),c=>{if(c.doc.data().status==='pending'&&c.type!=='removed')notify('🧾 إيصال جديد',ulabel(c.doc.data().unit))});
     sub('req',c('requests'),c=>{if(c.type==='added')notify('🔧 طلب صيانة',c.doc.data().title)});
 sub('users',c('users'));
-sub('expenses',c('expenses'));
+sub('expenses',superadmin?c('expenses'):query(c('expenses'),where('createdBy','==',auth.currentUser.uid)));
 }
   else{sub('dues',query(c('dues'),where('unit','==',me.unit)),c=>{if(c.type==='modified'){const d=c.doc.data();notify('رسوم '+d.month,ST[d.status][0])}});
     sub('req',query(c('requests'),where('uid','==',auth.currentUser.uid)),c=>{if(c.type==='modified')notify('🔧 تحديث الطلب',c.doc.data().title+': '+RS[c.doc.data().status])})}
