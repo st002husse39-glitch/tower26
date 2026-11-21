@@ -1464,25 +1464,162 @@ const pjRe=()=>{pjMo.disconnect();try{pjRender()}finally{pjMo.takeRecords();pjW(
 /* واجهة المدير: قائمة المشاريع + نموذج الإنشاء */
 function pjAdminList(){
   const F=pjF;
-  const ad=F.a.map((x,i)=>`<div class="row"><span>${esc(x.n)} — ${x.p} جنيه (حتى ${x.m})</span><button class="d" onclick="pjAdDel(${i})">✕</button></div>`).join('');
-  const form=`<div class="card"><b>مشروع جديد</b>
-<input placeholder="اسم المشروع (مثال: الكالون الإلكتروني)" value="${esc(F.n||'')}" oninput="pjIn('n',this.value)">
-<textarea rows="2" placeholder="وصف المشروع" oninput="pjIn('d',this.value)">${esc(F.d||'')}</textarea>
-<select onchange="pjIn('t',this.value)"><option value="m" ${F.t==='m'?'selected':''}>إجباري على كل الوحدات</option><option value="o" ${F.t==='o'?'selected':''}>اختياري (الساكن يطلب)</option></select>
-<select onchange="pjIn('sh',this.value)"><option value="1" ${F.sh==='1'?'selected':''}>يشمل المحلات التجارية</option><option value="0" ${F.sh==='0'?'selected':''}>الشقق فقط</option></select>
-<input type="number" placeholder="التكلفة الأساسية لكل وحدة" value="${esc(F.b??'')}" oninput="pjIn('b',this.value)">
-<input placeholder="ماذا تشمل التكلفة الأساسية؟ (مثال: شاملة شفرتين)" value="${esc(F.bd||'')}" oninput="pjIn('bd',this.value)">
-<div class="mu">آخر موعد للطلب (اختياري)</div><input type="date" value="${esc(F.dl||'')}" onchange="pjIn('dl',this.value)">
-<b>الإضافات الاختيارية</b>${ad}
-<input id="pjan" placeholder="اسم الإضافة (مثال: شفرة إضافية)"><input id="pjap" type="number" placeholder="سعرها"><input id="pjam" type="number" placeholder="الحد الأقصى للكمية لكل وحدة">
-<button class="s" onclick="pjAdAdd()">+ إضافة للقائمة</button>
-<button onclick="pjCreate()">إنشاء المشروع</button></div>`;
-  const list=S.pj.slice().sort((a,b)=>b.ts-a.ts).map(p=>{
-    const o=S.po.filter(x=>x.pid===p.id&&x.status!=='cancelled'),s=f=>o.filter(f).reduce((a,x)=>a+x.total,0);
-    return `<div class="card"><div class="row"><b>${esc(p.name)}</b><span class="mu">${p.mandatory?'إجباري':'اختياري'}${p.open?'':' · مغلق'}</span></div><div class="mu">${o.length} طلب · المطلوب ${s(()=>1)} · المحصّل ${s(pjPd)}</div><button class="s" onclick="pjOpen('${p.id}')">فتح</button><button class="s" onclick="pjTog('${p.id}')">${p.open?'إغلاق الطلب':'إعادة فتح'}</button><button class="d" onclick="pjDelP('${p.id}')">حذف</button></div>`;
-  }).join('')||'<div class="mu">لا توجد مشاريع بعد</div>';
-  return `<button class="s" onclick="pjCmp()">📊 مقارنة المشاريع وتصديرها</button>`+list+form;
+
+  const ad=F.a.map((x,i)=>`
+    <div class="row">
+      <span>${esc(x.n)} — ${x.p} جنيه (حتى ${x.m})</span>
+      ${superadmin?`<button class="d" onclick="pjAdDel(${i})">✕</button>`:''}
+    </div>
+  `).join('');
+
+  const form=superadmin?`
+    <div class="card">
+      <b>مشروع جديد</b>
+
+      <input
+        placeholder="اسم المشروع (مثال: الكالون الإلكتروني)"
+        value="${esc(F.n||'')}"
+        oninput="pjIn('n',this.value)"
+      >
+
+      <textarea
+        rows="2"
+        placeholder="وصف المشروع"
+        oninput="pjIn('d',this.value)"
+      >${esc(F.d||'')}</textarea>
+
+      <select onchange="pjIn('t',this.value)">
+        <option value="m" ${F.t==='m'?'selected':''}>
+          إجباري على كل الوحدات
+        </option>
+        <option value="o" ${F.t==='o'?'selected':''}>
+          اختياري (الساكن يطلب)
+        </option>
+      </select>
+
+      <select onchange="pjIn('sh',this.value)">
+        <option value="1" ${F.sh==='1'?'selected':''}>
+          يشمل المحلات التجارية
+        </option>
+        <option value="0" ${F.sh==='0'?'selected':''}>
+          الشقق فقط
+        </option>
+      </select>
+
+      <input
+        type="number"
+        placeholder="التكلفة الأساسية لكل وحدة"
+        value="${esc(F.b??'')}"
+        oninput="pjIn('b',this.value)"
+      >
+
+      <input
+        placeholder="ماذا تشمل التكلفة الأساسية؟ (مثال: شاملة شفرتين)"
+        value="${esc(F.bd||'')}"
+        oninput="pjIn('bd',this.value)"
+      >
+
+      <div class="mu">آخر موعد للطلب (اختياري)</div>
+
+      <input
+        type="date"
+        value="${esc(F.dl||'')}"
+        onchange="pjIn('dl',this.value)"
+      >
+
+      <b>الإضافات الاختيارية</b>
+
+      ${ad}
+
+      <input
+        id="pjan"
+        placeholder="اسم الإضافة (مثال: شفرة إضافية)"
+      >
+
+      <input
+        id="pjap"
+        type="number"
+        placeholder="سعرها"
+      >
+
+      <input
+        id="pjam"
+        type="number"
+        placeholder="الحد الأقصى للكمية لكل وحدة"
+      >
+
+      <button class="s" onclick="pjAdAdd()">
+        + إضافة للقائمة
+      </button>
+
+      <button onclick="pjCreate()">
+        إنشاء المشروع
+      </button>
+    </div>
+  `:'';
+
+  const list=S.pj
+    .slice()
+    .sort((a,b)=>b.ts-a.ts)
+    .map(p=>{
+      const o=S.po.filter(
+        x=>x.pid===p.id&&x.status!=='cancelled'
+      );
+
+      const s=f=>o
+        .filter(f)
+        .reduce((a,x)=>a+x.total,0);
+
+      return `
+        <div class="card">
+          <div class="row">
+            <b>${esc(p.name)}</b>
+            <span class="mu">
+              ${p.mandatory?'إجباري':'اختياري'}
+              ${p.open?'':' · مغلق'}
+            </span>
+          </div>
+
+          <div class="mu">
+            ${o.length} طلب · المطلوب ${s(()=>1)} · المحصّل ${s(pjPd)}
+          </div>
+
+          <button
+            class="s"
+            onclick="pjOpen('${p.id}')"
+          >
+            فتح
+          </button>
+
+          <button
+            class="s"
+            onclick="pjTog('${p.id}')"
+          >
+            ${p.open?'إغلاق الطلب':'إعادة فتح'}
+          </button>
+
+          ${superadmin?`
+            <button
+              class="d"
+              onclick="pjDelP('${p.id}')"
+            >
+              حذف
+            </button>
+          `:''}
+        </div>
+      `;
+    })
+    .join('')||'<div class="mu">لا توجد مشاريع بعد</div>';
+
+  return `
+    <button class="s" onclick="pjCmp()">
+      📊 مقارنة المشاريع وتصديرها
+    </button>
+    ${list}
+    ${form}
+  `;
 }
+
 window.pjIn=(k,v)=>{pjF[k]=v};
 window.pjAdDel=i=>{pjF.a.splice(i,1);pjRe()};
 window.pjAdAdd=()=>{
@@ -1491,6 +1628,10 @@ window.pjAdAdd=()=>{
   pjF.a.push({n,p,m});pjRe();
 };
 window.pjCreate=()=>{
+   if(!superadmin){
+    return alert('ليس لديك صلاحية إنشاء مشاريع جديدة');
+  }
+
   const F=pjF,b=+F.b;
   if(!(F.n||'').trim()||F.b===undefined||F.b===''||!(b>=0))return alert('أدخل اسم المشروع والتكلفة الأساسية');
   wr(async()=>{
@@ -1508,6 +1649,10 @@ window.pjCmp=()=>{pjSel='*';pjRe()};
 window.pjBack=()=>{pjSel=null;pjRe()};
 window.pjTog=id=>{const p=S.pj.find(x=>x.id===id);if(p)wr(()=>updateDoc(doc(db,'projects',id),{open:!p.open}))};
 window.pjDelP=id=>{
+   if(!superadmin){
+    return alert('ليس لديك صلاحية حذف المشاريع');
+  }
+
   if(!confirm('حذف المشروع وكل طلباته نهائيًا؟'))return;
   wr(async()=>{const b=writeBatch(db);S.po.filter(x=>x.pid===id).forEach(x=>b.delete(doc(db,'orders',x.id)));b.delete(doc(db,'projects',id));await b.commit()});
 };
