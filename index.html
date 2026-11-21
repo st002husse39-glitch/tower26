@@ -54,7 +54,7 @@ const UNITS=[...Array.from({length:8},(_,i)=>({id:'S'+(i+1),label:'محل '+(i+1
 const ulabel=id=>(UNITS.find(u=>u.id===id)||{label:id||'—'}).label;
 const ST={unpaid:['غير مدفوع','bad'],pending:['قيد المراجعة','wn'],paid:['مدفوع','ok']};
 const RS={new:'جديد',prog:'قيد التنفيذ',done:'تم'};
-let me=null,admin=false,superadmin=false,tab='ann',M=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],set:{}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
+let me=null,admin=false,superadmin=false,tab='ann',M=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],expenses:[],set:{}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
 const err=e=>alert('تعذر تنفيذ العملية: '+(e.code||e.message));
 const wr=async f=>{try{await f()}catch(e){err(e)}};
 
@@ -72,7 +72,10 @@ function startData(){
   sub('polls',c('polls'));sub('votes',c('votes'));
   unsubs.push(onSnapshot(doc(db,'settings','pay'),s=>{S.set=s.data()||{};draw()},()=>{}));
   if(admin){sub('dues',c('dues'),c=>{if(c.doc.data().status==='pending'&&c.type!=='removed')notify('🧾 إيصال جديد',ulabel(c.doc.data().unit))});
-    sub('req',c('requests'),c=>{if(c.type==='added')notify('🔧 طلب صيانة',c.doc.data().title)});sub('users',c('users'))}
+    sub('req',c('requests'),c=>{if(c.type==='added')notify('🔧 طلب صيانة',c.doc.data().title)});
+sub('users',c('users'));
+sub('expenses',c('expenses'));
+}
   else{sub('dues',query(c('dues'),where('unit','==',me.unit)),c=>{if(c.type==='modified'){const d=c.doc.data();notify('رسوم '+d.month,ST[d.status][0])}});
     sub('req',query(c('requests'),where('uid','==',auth.currentUser.uid)),c=>{if(c.type==='modified')notify('🔧 تحديث الطلب',c.doc.data().title+': '+RS[c.doc.data().status])})}
 }
@@ -95,9 +98,9 @@ window.out=()=>signOut(auth);
 function draw(){
   if(!me)return;
   const nAnn=S.ann.filter(a=>a.ts>seen).length;
-  const tabs=admin?[['ann','الإعلانات'],['dues','الرسوم'],['req','الطلبات'],...(superadmin?[['vote','التصويت']]:[]),['res','السكان'],['me','حسابي']]:[['ann','الإعلانات'],['dues','رسومي'],['req','الصيانة'],['vote','التصويت'],['me','حسابي']];
+  const tabs=admin?[['ann','الإعلانات'],['dues','الرسوم'],['req','الطلبات'],['exp','المصروفات'],...(superadmin?[['vote','التصويت']]:[]),['res','السكان'],['me','حسابي']]:[['ann','الإعلانات'],['dues','رسومي'],['req','الصيانة'],['vote','التصويت'],['me','حسابي']];
   root.innerHTML=`<div class="row"><h1>🏢 برج 26</h1><button class="s" onclick="out()">خروج</button></div><div class="mu">${esc(me.name)} — ${admin?'مدير':ulabel(me.unit)}</div><div id="v"></div><nav>${tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="go('${t[0]}')">${t[1]}${t[0]==='ann'&&nAnn?`<span class="dot">${nAnn}</span>`:''}</button>`).join('')}</nav>`;
-  ({ann:vAnn,dues:admin?vDuesA:vDues,req:vReq,vote:vVote,res:vRes,me:vMe}[tab]||vAnn)();
+  ({ann:vAnn,dues:admin?vDuesA:vDues,req:vReq,exp:vExpenses,vote:vVote,res:vRes,me:vMe}[tab]||vAnn)();
 }
 window.go=t=>{
   if(t==='vote'&&admin&&!superadmin){
@@ -777,6 +780,16 @@ window.editResident=async(id)=>{
 function vMe(){
   $('#v').innerHTML=`<div class="card"><b>تفعيل الإشعارات</b><div class="mu">على الآيفون: أضف التطبيق للشاشة الرئيسية أولًا.</div><button onclick="enablePush()">🔔 تفعيل</button></div><div class="card"><b>تغيير كلمة المرور</b><input id="op" type="password" placeholder="الحالية"><input id="np" type="password" placeholder="الجديدة (6 أحرف على الأقل)"><button onclick="chPw()">تغيير</button></div>`;
 }
+ function vExpenses(){
+  $('#v').innerHTML=`
+    <div class="card">
+      <h2>المصروفات</h2>
+      <div class="mu">
+        سيتم تجهيز شاشة المصروفات في الخطوة التالية.
+      </div>
+    </div>
+  `;
+ }
 window.chPw=()=>wr(async()=>{const u=auth.currentUser;if($('#np').value.length<6)return alert('كلمة المرور قصيرة');await reauthenticateWithCredential(u,EmailAuthProvider.credential(u.email,$('#op').value));await updatePassword(u,$('#np').value);alert('تم التغيير')});
 window.enablePush=async()=>{
   try{if(await Notification.requestPermission()!=='granted')return alert('لم يتم السماح بالإشعارات');
