@@ -813,6 +813,17 @@ window.showExpenseReceipt=id=>{
   d.onclick=()=>d.remove();
   document.body.appendChild(d);
 };
+let expenseStatusFilter='all',expenseMonthFilter='all';
+function expenseFilterBox(list){
+  const months=[...new Set(list.map(x=>(x.spentAt||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  return `<div class="card"><div class="row"><b>فلاتر المصروفات</b><button class="s" onclick="clearExpenseFilters()">مسح الفلاتر</button></div><select id="expenseStatusFilter" onchange="applyExpenseFilters()"><option value="all" ${expenseStatusFilter==='all'?'selected':''}>كل الحالات</option><option value="pending" ${expenseStatusFilter==='pending'?'selected':''}>قيد المراجعة</option><option value="approved" ${expenseStatusFilter==='approved'?'selected':''}>معتمد</option><option value="rejected" ${expenseStatusFilter==='rejected'?'selected':''}>مرفوض</option></select><select id="expenseMonthFilter" onchange="applyExpenseFilters()"><option value="all" ${expenseMonthFilter==='all'?'selected':''}>كل الشهور</option>${months.map(m=>`<option value="${m}" ${expenseMonthFilter===m?'selected':''}>${m}</option>`).join('')}</select></div>`;
+}
+function filteredExpenses(list){
+  return list.filter(x=>(expenseStatusFilter==='all'||x.status===expenseStatusFilter)&&(expenseMonthFilter==='all'||(x.spentAt||'').startsWith(expenseMonthFilter)));
+}
+window.applyExpenseFilters=()=>{expenseStatusFilter=$('#expenseStatusFilter').value;expenseMonthFilter=$('#expenseMonthFilter').value;draw()};
+window.clearExpenseFilters=()=>{expenseStatusFilter='all';expenseMonthFilter='all';draw()};
+
 function vCash(){
   if(!superadmin){
     $('#v').innerHTML='<div class="card">لا تملك صلاحية عرض الصندوق</div>';
@@ -846,11 +857,13 @@ function vCash(){
 }
 
 function vExpenses(){
-  const list=S.expenses.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const allExpenses=S.expenses.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const list=filteredExpenses(allExpenses);
   if(superadmin){
     const pendingRows=list.filter(x=>x.status==='pending');
     $('#v').innerHTML=`
       <div class="card"><h2>إدارة المصروفات</h2><div class="mu">راجع المصروفات وأدر حالتها. المصروف المعتمد فقط يخصم من الصندوق.</div></div>
+      ${expenseFilterBox(allExpenses)}
       <h2>بانتظار المراجعة</h2>
       ${pendingRows.map(x=>`
         <div class="card">
@@ -876,7 +889,7 @@ function vExpenses(){
     <div class="card"><h2>إدخال مصروف</h2>
       <input id="exTitle" placeholder="نوع المصروف، مثل: فاتورة كهرباء أو صيانة"><input id="exAmount" type="number" min="0.01" step="0.01" placeholder="قيمة المصروف بالجنيه"><textarea id="exDescription" rows="3" placeholder="تفاصيل المصروف أو سبب الدفع"></textarea>
       <div class="mu">تاريخ المصروف</div><input id="exSpentAt" type="date" value="${new Date().toISOString().slice(0,10)}"><div class="mu">صورة الإيصال (اختياري)</div><input id="exReceipt" type="file" accept="image/*"><button onclick="addExpense()">حفظ المصروف للمراجعة</button>
-    </div><h2>المصروفات التي أدخلتها</h2>
+    </div>${expenseFilterBox(allExpenses)}<h2>المصروفات التي أدخلتها</h2>
     ${list.map(x=>`<div class="card"><div class="row"><b>${esc(x.title||'مصروف')}</b><span class="${x.status==='pending'?'wn':x.status==='approved'?'ok':'bad'}">${x.status==='pending'?'بانتظار المراجعة':x.status==='approved'?'معتمد':'مرفوض'}</span></div><div>القيمة: <b>${esc(x.amount||0)} جنيه</b></div><div>التاريخ: ${esc(x.spentAt||'—')}</div><div class="mu">${esc(x.description||'لا توجد تفاصيل')}</div>${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}${x.reviewNote?`<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`:''}</div>`).join('')||'<div class="mu">لم تدخل أي مصروفات بعد</div>'}
   `;
 }
