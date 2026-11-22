@@ -55,7 +55,7 @@ const UNITS=[...Array.from({length:8},(_,i)=>({id:'S'+(i+1),label:'محل '+(i+1
 const ulabel=id=>(UNITS.find(u=>u.id===id)||{label:id||'—'}).label;
 const ST={unpaid:['غير مدفوع','bad'],pending:['قيد المراجعة','wn'],paid:['مدفوع','ok']};
 const RS={new:'جديد',prog:'قيد التنفيذ',done:'تم'};
-let me=null,admin=false,superadmin=false,tab='ann',M=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],expenses:[],set:{}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
+let me=null,admin=false,superadmin=false,tab='ann',M=month0(),duesAddMonth=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],expenses:[],set:{}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
 const err=e=>alert('تعذر تنفيذ العملية: '+(e.code||e.message));
 const wr=async f=>{try{await f()}catch(e){err(e)}};
 
@@ -213,7 +213,9 @@ function vDuesA(){
   superadmin
     ? `
       <div class="card">
-        <b>إضافة رسوم الشهر</b>
+        <b>إضافة رسوم جديدة</b>
+        <div class="mu">اختر شهر الرسوم الجديدة بشكل مستقل عن شهر إدارة الرسوم والفلترة.</div>
+        <input id="addMonth" type="month" value="${window.duesAddMonth||duesAddMonth}" onchange="window.duesAddMonth=this.value">
 
         <select id="sc">
           <option value="r">
@@ -998,11 +1000,15 @@ window.genDues=()=>{
   }
 
   const amount=+$('#am').value;
+  const addMonth=window.duesAddMonth||duesAddMonth;
   const type=$('#sc').value;
   const desc=($('#ds')?$('#ds').value:'').trim();
 
   if(!amount||amount<=0){
     return alert('أدخل مبلغًا صحيحًا');
+  }
+  if(!addMonth){
+    return alert('اختر شهر الرسوم الجديدة');
   }
 
   const units=UNITS.filter(u=>u.t===type);
@@ -1011,7 +1017,7 @@ window.genDues=()=>{
     return alert('لا توجد وحدات لهذا النوع');
   }
 
-  const batchId='dues_'+M+'_'+type+'_'+uidg();
+  const batchId='dues_'+addMonth+'_'+type+'_'+uidg();
   const createdAt=Date.now();
 
   wr(async()=>{
@@ -1019,14 +1025,14 @@ window.genDues=()=>{
     let count=0;
 
     units.forEach(u=>{
-      const id=u.id+'_'+M;
+      const id=u.id+'_'+addMonth;
 
       if(!S.dues.find(x=>x.id===id)){
         b.set(
           doc(db,'dues',id),
           {
             unit:u.id,
-            month:M,
+            month:addMonth,
             amount,
             desc,
             status:'unpaid',
@@ -1051,7 +1057,7 @@ window.genDues=()=>{
     window._ds='';
 
     alert(
-      'تمت إضافة الرسوم إلى '+count+
+      'تمت إضافة رسوم شهر '+addMonth+' إلى '+count+
       ' وحدة، وتم حفظها كدفعة واحدة.'
     );
   });
@@ -1065,7 +1071,7 @@ window.deleteDuesBatch=()=>{
   const groups={};
 
   S.dues
-    .filter(x=>x.month===M&&x.batchId)
+    .filter(x=>x.month===(window.duesAddMonth||duesAddMonth)&&x.batchId)
     .forEach(x=>{
       if(!groups[x.batchId]){
         groups[x.batchId]={
@@ -1084,7 +1090,7 @@ window.deleteDuesBatch=()=>{
 
   if(!batches.length){
     return alert(
-      'لا توجد دفعات مرتبطة بهذا الشهر وقابلة للإدارة'
+      'لا توجد دفعات مرتبطة بشهر الإضافة المحدد وقابلة للإدارة'
     );
   }
 
