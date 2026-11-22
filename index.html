@@ -856,6 +856,7 @@ function vExpenses(){
           <div class="mu">التاريخ: ${esc(x.spentAt||'—')} · ${esc(x.description||'لا توجد تفاصيل')}</div>
           ${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}
           ${x.status!=='pending'?`<button class="s" onclick="resetExpenseToPending('${x.id}')">إعادة إلى قيد المراجعة</button>`:''}
+          ${x.status==='rejected'?`<button class="d" onclick="deleteRejectedExpense('${x.id}')">حذف المصروف المرفوض</button>`:''}
         </div>
       `).join('')||'<div class="mu">لا توجد مصروفات</div>'}
       <h2>حركة الصندوق</h2>
@@ -914,6 +915,26 @@ window.resetExpenseToPending=id=>{
       reviewNote:'تم إرجاع المصروف للمراجعة بواسطة السوبر يوزر'
     });
     alert('تم إرجاع المصروف إلى قيد المراجعة، وتمت إزالته من المصروفات المعتمدة.');
+    draw();
+  });
+};
+window.deleteRejectedExpense=id=>{
+  if(!superadmin)return alert('ليس لديك صلاحية حذف المصروفات');
+  const x=S.expenses.find(e=>e.id===id);
+  if(!x)return alert('لم يتم العثور على المصروف');
+  if(x.status!=='rejected'){
+    return alert('لا يمكن حذف إلا المصروفات المرفوضة');
+  }
+  const ok=confirm(
+    'تحذير: سيتم حذف هذا المصروف المرفوض نهائيًا.'+
+    '\n\nالبيان: '+(x.title||'مصروف')+
+    '\nالقيمة: '+(x.amount||0)+' جنيه'+
+    '\n\nلا يمكن التراجع عن الحذف. هل تريد المتابعة؟'
+  );
+  if(!ok)return;
+  wr(async()=>{
+    await deleteDoc(doc(db,'expenses',id));
+    alert('تم حذف المصروف المرفوض نهائيًا.');
     draw();
   });
 };
