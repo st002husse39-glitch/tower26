@@ -46,6 +46,7 @@ const DOMAIN="@burg26.local";
 const app0=initializeApp(CFG),auth=getAuth(app0),db=getFirestore(app0);
 const $=s=>document.querySelector(s),root=$('#app');
 const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>Number(n||0).toLocaleString('ar-EG');
 const uidg=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const today=()=>new Date().toLocaleDateString('ar-EG');
 const month0=()=>new Date().toISOString().slice(0,7);
