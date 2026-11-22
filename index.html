@@ -210,23 +210,6 @@ function vDuesA(){
 
       <select onchange="window.duesUnitFilter=this.value;draw()"><option value="all" ${unitFilter==='all'?'selected':''}>كل الوحدات</option>${UNITS.map(u=>`<option value="${u.id}" ${unitFilter===u.id?'selected':''}>${u.label}</option>`).join('')}</select>
 
-      <div class="g">
-        <div>
-          <b class="ok">${n('paid')}</b>
-          مدفوع
-        </div>
-
-        <div>
-          <b class="wn">${n('pending')}</b>
-          بانتظار المراجعة
-        </div>
-
-        <div>
-          <b class="bad">${n('unpaid')}</b>
-          غير مدفوع
-        </div>
-      </div>
-
       <select
         onchange="window.duesFilter=this.value;draw()"
       >
@@ -246,6 +229,23 @@ function vDuesA(){
           غير مدفوع
         </option>
       </select>
+
+      <div class="g">
+        <div>
+          <b class="ok">${n('paid')}</b>
+          مدفوع
+        </div>
+
+        <div>
+          <b class="wn">${n('pending')}</b>
+          بانتظار المراجعة
+        </div>
+
+        <div>
+          <b class="bad">${n('unpaid')}</b>
+          غير مدفوع
+        </div>
+      </div>
     </div>
 
     <div class="card">
