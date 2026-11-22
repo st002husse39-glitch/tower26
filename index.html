@@ -206,7 +206,7 @@ function vDuesA(){
     }
     <h2>إدارة الرسوم</h2>
     <div class="card">
-      <div class="row"><input id="m" type="month" value="${M}" onchange="M=this.value;draw()"><button class="s" onclick="clearDuesFilters()">مسح الفلاتر</button></div>
+      <input id="m" type="month" value="${M}" onchange="M=this.value;draw()">
 
       <select onchange="window.duesUnitFilter=this.value;draw()"><option value="all" ${unitFilter==='all'?'selected':''}>كل الوحدات</option>${UNITS.map(u=>`<option value="${u.id}" ${unitFilter===u.id?'selected':''}>${u.label}</option>`).join('')}</select>
 
@@ -229,6 +229,8 @@ function vDuesA(){
           غير مدفوع
         </option>
       </select>
+
+      <button class="s" onclick="clearDuesFilters()">مسح الفلاتر</button>
 
       <div class="g">
         <div>
