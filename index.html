@@ -784,170 +784,103 @@ function vMe(){
   const list=[...S.expenses]
     .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
 
-    if(superadmin){
+  if(superadmin){
+    const money=n=>(+n||0).toLocaleString('ar-EG');
+    const incomeRows=S.dues.filter(x=>x.status==='paid');
+    const approvedRows=list.filter(x=>x.status==='approved');
+    const pendingRows=list.filter(x=>x.status==='pending');
+    const income=incomeRows.reduce((s,x)=>s+(+x.amount||0),0);
+    const approved=approvedRows.reduce((s,x)=>s+(+x.amount||0),0);
+    const pending=pendingRows.reduce((s,x)=>s+(+x.amount||0),0);
+    const balance=income-approved;
+    const movements=[
+      ...incomeRows.map(x=>({
+        ts:x.paidAt||x.month||'',
+        date:x.paidAt||x.month||'—',
+        title:'رسوم '+(x.month||'شهرية'),
+        unit:ulabel(x.unit),
+        amount:+x.amount||0,
+        kind:'income'
+      })),
+      ...approvedRows.map(x=>({
+        ts:x.reviewedAt||x.createdAt||0,
+        date:x.spentAt||'—',
+        title:x.title||'مصروف',
+        unit:x.description||'',
+        amount:+x.amount||0,
+        kind:'expense'
+      }))
+    ].sort((a,b)=>String(b.ts).localeCompare(String(a.ts))).slice(0,30);
+
     $('#v').innerHTML=`
       <div class="card">
-        <h2>مراجعة مصروفات صندوق العمارة</h2>
-        <div class="mu">
-          المصروفات المعروضة هنا لا تخصم من الصندوق إلا بعد اعتمادها.
-        </div>
+        <h2>صندوق العمارة</h2>
+        <div class="mu">الإيرادات هي الرسوم التي أصبحت مدفوعة، والمصروفات تخصم بعد اعتمادها فقط.</div>
       </div>
 
-      ${
-        list.map(x=>`
-          <div class="card">
-            <div class="row">
-              <b>${esc(x.title||'مصروف')}</b>
+      <div class="g">
+        <div class="card"><div class="mu">الرصيد الحالي</div><h1 class="${balance<0?'bad':'ok'}">${money(balance)} جنيه</h1></div>
+        <div class="card"><div class="mu">إجمالي الإيرادات</div><h2 class="ok">${money(income)} جنيه</h2><div class="mu">${incomeRows.length} عملية مدفوعة</div></div>
+        <div class="card"><div class="mu">المصروفات المعتمدة</div><h2 class="bad">${money(approved)} جنيه</h2><div class="mu">${approvedRows.length} مصروف معتمد</div></div>
+        <div class="card"><div class="mu">بانتظار المراجعة</div><h2 class="wn">${money(pending)} جنيه</h2><div class="mu">${pendingRows.length} مصروف</div></div>
+      </div>
 
-              <span class="${
-                x.status==='pending'
-                  ? 'wn'
-                  : x.status==='approved'
-                    ? 'ok'
-                    : 'bad'
-              }">
-                ${
-                  x.status==='pending'
-                    ? 'بانتظار المراجعة'
-                    : x.status==='approved'
-                      ? 'معتمد'
-                      : 'مرفوض'
-                }
-              </span>
-            </div>
+      ${balance<0?`<div class="card bad">تحذير: المصروفات المعتمدة تتجاوز الإيرادات المسجلة للصندوق.</div>`:''}
 
-            <div>
-              القيمة:
-              <b>${esc(x.amount||0)} جنيه</b>
-            </div>
-
-            <div>
-              التاريخ:
-              ${esc(x.spentAt||'—')}
-            </div>
-
-            <div>
-              التفاصيل:
-              ${esc(x.description||'لا توجد تفاصيل')}
-            </div>
-
-            ${
-              x.status==='pending'
-                ? `
-                  <div style="margin-top:10px">
-                    <button
-                      class="s"
-                      onclick="reviewExpense('${x.id}','approved')"
-                    >
-                      اعتماد المصروف
-                    </button>
-
-                    <button
-                      class="d"
-                      onclick="reviewExpense('${x.id}','rejected')"
-                    >
-                      رفض المصروف
-                    </button>
-                  </div>
-                `
-                : ''
-            }
-
-            ${
-              x.reviewNote
-                ? `<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`
-                : ''
-            }
+      <h2>المصروفات بانتظار المراجعة</h2>
+      ${pendingRows.map(x=>`
+        <div class="card">
+          <div class="row"><b>${esc(x.title||'مصروف')}</b><b class="wn">${money(x.amount)} جنيه</b></div>
+          <div>${esc(x.description||'لا توجد تفاصيل')}</div>
+          <div class="mu">التاريخ: ${esc(x.spentAt||'—')}</div>
+          <div style="margin-top:10px">
+            <button class="s" onclick="reviewExpense('${x.id}','approved')">اعتماد المصروف</button>
+            <button class="d" onclick="reviewExpense('${x.id}','rejected')">رفض المصروف</button>
           </div>
-        `).join('')
-        || '<div class="mu">لا توجد مصروفات مسجلة</div>'
-      }
-    `;
+        </div>
+      `).join('')||'<div class="mu">لا توجد مصروفات بانتظار المراجعة</div>'}
 
+      <h2>حركة الصندوق</h2>
+      <div class="card" style="overflow-x:auto">
+        <table class="rt">
+          <tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th></tr>
+          ${movements.map(x=>`<tr>
+            <td>${esc(x.date)}</td>
+            <td>${esc(x.title)}</td>
+            <td>${esc(x.unit)}</td>
+            <td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td>
+            <td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td>
+          </tr>`).join('')||`<tr><td colspan="5" class="mu">لا توجد حركة مالية مسجلة</td></tr>`}
+        </table>
+      </div>
+    `;
     return;
   }
 
   $('#v').innerHTML=`
     <div class="card">
       <h2>إدخال مصروف</h2>
-
-      <input
-        id="exTitle"
-        placeholder="نوع المصروف، مثل: فاتورة كهرباء أو صيانة"
-      >
-
-      <input
-        id="exAmount"
-        type="number"
-        min="0.01"
-        step="0.01"
-        placeholder="قيمة المصروف بالجنيه"
-      >
-
-      <textarea
-        id="exDescription"
-        rows="3"
-        placeholder="تفاصيل المصروف أو سبب الدفع"
-      ></textarea>
-
+      <input id="exTitle" placeholder="نوع المصروف، مثل: فاتورة كهرباء أو صيانة">
+      <input id="exAmount" type="number" min="0.01" step="0.01" placeholder="قيمة المصروف بالجنيه">
+      <textarea id="exDescription" rows="3" placeholder="تفاصيل المصروف أو سبب الدفع"></textarea>
       <div class="mu">تاريخ المصروف</div>
-
-      <input
-        id="exSpentAt"
-        type="date"
-        value="${new Date().toISOString().slice(0,10)}"
-      >
-
-      <button onclick="addExpense()">
-        حفظ المصروف للمراجعة
-      </button>
+      <input id="exSpentAt" type="date" value="${new Date().toISOString().slice(0,10)}">
+      <button onclick="addExpense()">حفظ المصروف للمراجعة</button>
     </div>
-
     <h2>المصروفات التي أدخلتها</h2>
-
-    ${
-      list.map(x=>`
-        <div class="card">
-          <div class="row">
-            <b>${esc(x.title||'مصروف')}</b>
-            <span class="${x.status==='pending'?'wn':x.status==='approved'?'ok':'bad'}">
-              ${
-                x.status==='pending'
-                  ? 'بانتظار المراجعة'
-                  : x.status==='approved'
-                    ? 'معتمد'
-                    : 'مرفوض'
-              }
-            </span>
-          </div>
-
-          <div>
-            القيمة:
-            <b>${esc(x.amount||0)} جنيه</b>
-          </div>
-
-          <div>
-            التاريخ:
-            ${esc(x.spentAt||'—')}
-          </div>
-
-          <div class="mu">
-            ${esc(x.description||'لا توجد تفاصيل')}
-          </div>
-
-          ${
-            x.reviewNote
-              ? `<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`
-              : ''
-          }
-        </div>
-      `).join('')
-      || '<div class="mu">لم تدخل أي مصروفات بعد</div>'
-    }
+    ${list.map(x=>`
+      <div class="card">
+        <div class="row"><b>${esc(x.title||'مصروف')}</b><span class="${x.status==='pending'?'wn':x.status==='approved'?'ok':'bad'}">${x.status==='pending'?'بانتظار المراجعة':x.status==='approved'?'معتمد':'مرفوض'}</span></div>
+        <div>القيمة: <b>${esc(x.amount||0)} جنيه</b></div>
+        <div>التاريخ: ${esc(x.spentAt||'—')}</div>
+        <div class="mu">${esc(x.description||'لا توجد تفاصيل')}</div>
+        ${x.reviewNote?`<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`:''}
+      </div>
+    `).join('')||'<div class="mu">لم تدخل أي مصروفات بعد</div>'}
   `;
 }
 
- window.reviewExpense=(id,status)=>{
+window.reviewExpense=(id,status)=>{
   if(!superadmin){
     return alert('ليس لديك صلاحية مراجعة المصروفات');
   }
