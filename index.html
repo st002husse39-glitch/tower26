@@ -848,6 +848,16 @@ function vExpenses(){
           <div style="margin-top:10px"><button class="s" onclick="reviewExpense('${x.id}','approved')">اعتماد المصروف</button><button class="d" onclick="reviewExpense('${x.id}','rejected')">رفض المصروف</button></div>
         </div>
       `).join('')||'<div class="mu">لا توجد مصروفات بانتظار المراجعة</div>'}
+      <h2>كل المصروفات</h2>
+      ${list.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).map(x=>`
+        <div class="card">
+          <div class="row"><b>${esc(x.title||'مصروف')}</b><b class="${x.status==='approved'?'ok':x.status==='rejected'?'bad':'wn'}">${x.status==='approved'?'معتمد':x.status==='rejected'?'مرفوض':'قيد المراجعة'}</b></div>
+          <div>القيمة: <b>${money(x.amount)} جنيه</b></div>
+          <div class="mu">التاريخ: ${esc(x.spentAt||'—')} · ${esc(x.description||'لا توجد تفاصيل')}</div>
+          ${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}
+          ${x.status!=='pending'?`<button class="s" onclick="resetExpenseToPending('${x.id}')">إعادة إلى قيد المراجعة</button>`:''}
+        </div>
+      `).join('')||'<div class="mu">لا توجد مصروفات</div>'}
       <h2>حركة الصندوق</h2>
       <div class="card" style="overflow-x:auto"><table class="rt"><tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th></tr>${movements.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.unit)}</td><td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td><td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td></tr>`).join('')||`<tr><td colspan="5" class="mu">لا توجد حركة مالية مسجلة</td></tr>`}</table></div>
     `;
@@ -881,6 +891,29 @@ window.reviewExpense=async(id,status)=>{
     if(file)data.receipt=await readExpenseReceipt(file);
     await updateDoc(doc(db,'expenses',id),data);
     alert(status==='approved'?'تم اعتماد المصروف، وسيُخصم من رصيد الصندوق.':'تم رفض المصروف، ولن يُخصم من رصيد الصندوق.');
+    draw();
+  });
+};
+window.resetExpenseToPending=id=>{
+  if(!superadmin)return alert('ليس لديك صلاحية إعادة المصروف للمراجعة');
+  const x=S.expenses.find(e=>e.id===id);
+  if(!x)return alert('لم يتم العثور على المصروف');
+  if(x.status==='pending')return alert('هذا المصروف بالفعل قيد المراجعة');
+  const ok=confirm(
+    'تنبيه: سيتم إرجاع المصروف إلى قيد المراجعة، ولن يُحتسب كمصروف معتمد حتى تتم مراجعته مرة أخرى.'+
+    '\n\nالبيان: '+(x.title||'مصروف')+
+    '\nالقيمة: '+(x.amount||0)+' جنيه'+
+    '\n\nهل تريد المتابعة؟'
+  );
+  if(!ok)return;
+  wr(async()=>{
+    await updateDoc(doc(db,'expenses',id),{
+      status:'pending',
+      reviewedBy:'',
+      reviewedAt:0,
+      reviewNote:'تم إرجاع المصروف للمراجعة بواسطة السوبر يوزر'
+    });
+    alert('تم إرجاع المصروف إلى قيد المراجعة، وتمت إزالته من المصروفات المعتمدة.');
     draw();
   });
 };
