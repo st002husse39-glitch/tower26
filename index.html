@@ -11,22 +11,31 @@
 :root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#6b7480;--pr:#0f766e;--bd:#e3e6ea;--ok:#15803d;--bad:#b91c1c;--wn:#b45309}
 @media (prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2026;--tx:#eef0f3;--mu:#9aa4b0;--pr:#2dd4bf;--bd:#2b323a;--ok:#4ade80;--bad:#f87171;--wn:#fbbf24}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:17px/1.75 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;max-width:700px;margin-inline:auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 96px;font-weight:500}
-h1{font-size:23px;line-height:1.35;margin:6px 0 10px;font-weight:800}h2{font-size:19px;line-height:1.45;margin:20px 0 8px;font-weight:800}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 3px 14px #0000000b}
-input,select,textarea,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:11px 12px;width:100%;margin:6px 0;min-height:46px;font-weight:500}
-button{background:var(--pr);color:#fff;border:0;font-weight:800;cursor:pointer;box-shadow:0 2px 6px #00000018}
-button.s{background:var(--bg);color:var(--tx);border:1px solid var(--bd);width:auto;padding:8px 14px;font-weight:700;margin:3px;box-shadow:none}
-button.d{background:none;color:var(--bad);width:auto;padding:8px 10px;font-weight:800;box-shadow:none}
-.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.mu{color:var(--mu);font-size:14px;font-weight:500}.ok{color:var(--ok)}.bad{color:var(--bad)}.wn{color:var(--wn)}
-nav{position:fixed;bottom:0;inset-inline:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding:8px 5px calc(8px + env(safe-area-inset-bottom,0px));overflow-x:auto;z-index:5;box-shadow:0 -3px 14px #00000012}
-nav button{background:none;color:var(--mu);padding:9px 10px;font-size:15px;white-space:nowrap;flex:1;margin:0;position:relative;box-shadow:none}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;max-width:640px;margin-inline:auto;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 90px}
+h1{font-size:19px;margin:4px 0}h2{font-size:16px;margin:14px 0 6px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:8px 0}
+input,select,textarea,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px;width:100%;margin:4px 0}
+button{background:var(--pr);color:#fff;border:0;font-weight:600;cursor:pointer}
+button.s{background:var(--bg);color:var(--tx);border:1px solid var(--bd);width:auto;padding:6px 12px;font-weight:400;margin:2px}
+button.d{background:none;color:var(--bad);width:auto;padding:4px 8px}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.mu{color:var(--mu);font-size:13px}.ok{color:var(--ok)}.bad{color:var(--bad)}.wn{color:var(--wn)}
+nav{position:fixed;bottom:0;inset-inline:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));overflow-x:auto;z-index:5}
+nav button{background:none;color:var(--mu);padding:8px 10px;font-size:14px;white-space:nowrap;flex:1;margin:0;position:relative}
 nav button.on{color:var(--pr);font-weight:700}
 .dot{position:absolute;top:2px;inset-inline-end:6px;background:var(--bad);color:#fff;border-radius:9px;font-size:11px;padding:0 5px}
 .bar{height:8px;background:var(--bd);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pr)}
 #ov{position:fixed;inset:0;background:#000d;display:none;align-items:center;justify-content:center;z-index:9}#ov img{max-width:95%;max-height:90%}
-.g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;text-align:center}.g b{font-size:24px;display:block;font-weight:800}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}.g b{font-size:22px;display:block}
+
+.section-card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 4px 16px #0000000d}
+.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.section-head b{font-size:19px;font-weight:800}.section-head .mu{max-width:70%;line-height:1.5}
+.section-kicker{color:var(--pr);font-size:13px;font-weight:800;margin-bottom:2px}
+.filter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.filter-grid label,.field-label{display:block;color:var(--mu);font-size:14px;font-weight:700;margin-bottom:3px}
+.due-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.due-stat{border:1px solid var(--bd);border-radius:14px;padding:12px;text-align:center;background:var(--bg)}.due-stat b{display:block;font-size:25px;line-height:1.2;font-weight:900}.due-stat span{font-size:13px;color:var(--mu);font-weight:700}
+.due-item{border:1px solid var(--bd);border-radius:15px;padding:14px;margin:10px 0;background:var(--card)}.due-item-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.due-amount{font-size:19px;font-weight:900}.due-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.due-actions button{width:auto;margin:0}
+@media(max-width:520px){.filter-grid{grid-template-columns:1fr}.due-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.due-stat{padding:9px 4px}.due-stat b{font-size:20px}.section-head{display:block}.section-head .mu{max-width:none}}
 </style>
 </head>
 <body>
@@ -142,202 +151,61 @@ function vDuesA(){
   const l=S.dues.filter(x=>x.month===M);
   const filter=window.duesFilter||'all';
   const unitFilter=window.duesUnitFilter||'all';
-
-  const filtered=l.filter(x=>
-    (filter==='all'||x.status===filter)&&
-    (unitFilter==='all'||x.unit===unitFilter)
-  );
-
+  const filtered=l.filter(x=>(filter==='all'||x.status===filter)&&(unitFilter==='all'||x.unit===unitFilter));
   const n=s=>l.filter(x=>x.status===s).length;
-
-  const rank={
-    pending:0,
-    unpaid:1,
-    paid:2
-  };
-
-  const rows=[...filtered].sort((a,b)=>
-    (rank[a.status]??9)-(rank[b.status]??9)||
-    a.unit.localeCompare(
-      b.unit,
-      'en',
-      {numeric:true}
-    )
-  );
+  const rank={pending:0,unpaid:1,paid:2};
+  const rows=[...filtered].sort((a,b)=>(rank[a.status]??9)-(rank[b.status]??9)||a.unit.localeCompare(b.unit,'en',{numeric:true}));
 
   $('#v').innerHTML=`
-    ${
-  superadmin
-    ? `
-      <div class="card">
-        <b>إضافة رسوم جديدة</b>
-        <div class="mu">اختر شهر الرسوم الجديدة بشكل مستقل عن شهر إدارة الرسوم والفلترة.</div>
+    ${superadmin?`
+      <section class="section-card">
+        <div class="section-head"><div><div class="section-kicker">إدارة مالية</div><b>إضافة رسوم جديدة</b></div><div class="mu">إنشاء دفعة رسوم مستقلة عن شهر الفلترة والإدارة.</div></div>
+        <div class="field-label">شهر الرسوم الجديدة</div>
         <input id="addMonth" type="month" value="${window.duesAddMonth||duesAddMonth}" onchange="window.duesAddMonth=this.value">
+        <div class="filter-grid">
+          <div><label>نوع الوحدات</label><select id="sc"><option value="r">الشقق السكنية (88)</option><option value="c">المحلات التجارية (8)</option></select></div>
+          <div><label>قيمة الرسم</label><input id="am" type="number" min="0" placeholder="المبلغ بالجنيه"></div>
+          <div style="display:flex;align-items:end"><button onclick="genDues()">إضافة الرسوم</button></div>
+        </div>
+        <div id="ds" class="mu" style="margin-top:8px">يمكنك إضافة توصيف للمبلغ بعد اختيار القيمة.</div>
+        <button class="d" onclick="deleteDuesBatch()">حذف دفعة رسوم</button>
+      </section>`:''}
 
-        <select id="sc">
-          <option value="r">
-            الشقق السكنية (88)
-          </option>
-
-          <option value="c">
-            المحلات التجارية (8)
-          </option>
-        </select>
-
-        <input
-          id="am"
-          type="number"
-          placeholder="المبلغ بالجنيه"
-        >
-
-        <button onclick="genDues()">
-          إضافة
-        </button>
-         
-<button
-  class="d"
-  onclick="deleteDuesBatch()"
->
-  حذف دفعة رسوم
-</button>
+    <section class="section-card">
+      <div class="section-head"><div><div class="section-kicker">لوحة المتابعة</div><b>إدارة الرسوم</b></div><div class="mu">استخدم الفلاتر للوصول إلى الرسوم المطلوبة بسرعة.</div></div>
+      <div class="filter-grid">
+        <div><label>شهر العرض</label><input id="m" type="month" value="${M}" onchange="M=this.value;draw()"></div>
+        <div><label>الوحدة</label><select onchange="window.duesUnitFilter=this.value;draw()"><option value="all" ${unitFilter==='all'?'selected':''}>كل الوحدات</option>${UNITS.map(u=>`<option value="${u.id}" ${unitFilter===u.id?'selected':''}>${u.label}</option>`).join('')}</select></div>
+        <div><label>حالة الرسم</label><select onchange="window.duesFilter=this.value;draw()"><option value="all" ${filter==='all'?'selected':''}>كل الحالات</option><option value="pending" ${filter==='pending'?'selected':''}>قيد المراجعة</option><option value="paid" ${filter==='paid'?'selected':''}>مدفوع</option><option value="unpaid" ${filter==='unpaid'?'selected':''}>غير مدفوع</option></select></div>
       </div>
-    `
-    : ''
-    }
-    <h2>إدارة الرسوم</h2>
-    <div class="card">
-      <input id="m" type="month" value="${M}" onchange="M=this.value;draw()">
-
-      <select onchange="window.duesUnitFilter=this.value;draw()"><option value="all" ${unitFilter==='all'?'selected':''}>كل الوحدات</option>${UNITS.map(u=>`<option value="${u.id}" ${unitFilter===u.id?'selected':''}>${u.label}</option>`).join('')}</select>
-
-      <select
-        onchange="window.duesFilter=this.value;draw()"
-      >
-        <option value="all" ${filter==='all'?'selected':''}>
-          كل الطلبات
-        </option>
-
-        <option value="pending" ${filter==='pending'?'selected':''}>
-          بانتظار المراجعة
-        </option>
-
-        <option value="paid" ${filter==='paid'?'selected':''}>
-          مدفوع
-        </option>
-
-        <option value="unpaid" ${filter==='unpaid'?'selected':''}>
-          غير مدفوع
-        </option>
-      </select>
-
       <button class="s" onclick="clearDuesFilters()">مسح الفلاتر</button>
-
-      <div class="g">
-        <div>
-          <b class="ok">${n('paid')}</b>
-          مدفوع
-        </div>
-
-        <div>
-          <b class="wn">${n('pending')}</b>
-          بانتظار المراجعة
-        </div>
-
-        <div>
-          <b class="bad">${n('unpaid')}</b>
-          غير مدفوع
-        </div>
+      <div class="due-stats">
+        <div class="due-stat"><b class="ok">${n('paid')}</b><span>مدفوع</span></div>
+        <div class="due-stat"><b class="wn">${n('pending')}</b><span>قيد المراجعة</span></div>
+        <div class="due-stat"><b class="bad">${n('unpaid')}</b><span>غير مدفوع</span></div>
       </div>
-    </div>
+    </section>
 
-    <div class="card">
-      <b>طريقة السداد التي تظهر للسكان</b>
+    <section class="section-card">
+      <div class="section-head"><div><div class="section-kicker">إعدادات السكان</div><b>طريقة السداد</b></div><div class="mu">النص الذي يظهر للسكان عند رفع الإيصال.</div></div>
+      <textarea id="pt" rows="3" placeholder="مثال: حوّل على InstaPay ...">${esc(S.set.text||'')}</textarea>
+      <button class="s" onclick="savePay()">حفظ طريقة السداد</button>
+    </section>
 
-      <textarea
-        id="pt"
-        rows="3"
-        placeholder="مثال: حوّل على InstaPay ..."
-      >${esc(S.set.text||'')}</textarea>
-
-      <button
-        class="s"
-        onclick="savePay()"
-      >
-        حفظ
-      </button>
-    </div>
-
-    ${
-      rows.map(x=>`
-        <div class="card">
-          <div class="row">
-            <span>
-              <b>${esc(ulabel(x.unit))}</b>
-              · ${esc(x.amount)} جنيه
-            </span>
-
-            <b class="${ST[x.status][1]}">
-              ${ST[x.status][0]}
-            </b>
-          </div>
-
-          ${
-            x.desc
-              ? `<div class="mu">📝 ${esc(x.desc)}</div>`
-              : ''
-          }
-
-          <div>
-            ${
-              x.receipt
-                ? `<button
-                     class="s"
-                     onclick="rc('${x.id}')"
-                   >
-                     عرض الإيصال
-                   </button>`
-                : ''
-            }
-
-            ${
-              !superadmin&&x.status!=='paid'
-                ? `<button
-                     class="s"
-                     onclick="confirmCashDue('${x.id}')"
-                   >
-                     ✓ تأكيد الدفع
-                   </button>`
-                : ''
-            }
-            
-            ${
-  superadmin&&x.status==='paid'
-    ? `<button
-         class="d"
-         onclick="confirmDuesReset('${x.id}')"
-       >
-         إعادة إلى قيد المراجعة
-       </button>`
-    : ''
-}
-
-            ${
-  !superadmin&&x.status==='pending'
-    ? `<button
-         class="s"
-         onclick="confirmRejectReceipt('${x.id}')"
-       >
-         ✕ رفض الإيصال
-       </button>`
-    : ''
-}
-
-
+    <section>
+      <div class="section-head"><div><div class="section-kicker">${rows.length} نتيجة</div><b>قائمة الرسوم</b></div><div class="mu">${M} · ${filter==='all'?'كل الحالات':ST[filter]?.[0]||filter}</div></div>
+      ${rows.map(x=>`
+        <div class="due-item">
+          <div class="due-item-head"><div><b>${esc(ulabel(x.unit))}</b><div class="mu">${esc(x.month)} · ${x.desc?esc(x.desc):'بدون توصيف'}</div></div><div class="due-amount">${esc(x.amount)} جنيه</div><b class="${ST[x.status][1]}">${ST[x.status][0]}</b></div>
+          <div class="due-actions">
+            ${x.receipt?`<button class="s" onclick="rc('${x.id}')">عرض الإيصال</button>`:''}
+            ${!superadmin&&x.status!=='paid'?`<button class="s" onclick="confirmCashDue('${x.id}')">✓ تأكيد الدفع</button>`:''}
+            ${superadmin&&x.status==='paid'?`<button class="d" onclick="confirmDuesReset('${x.id}')">إعادة إلى قيد المراجعة</button>`:''}
+            ${!superadmin&&x.status==='pending'?`<button class="s" onclick="confirmRejectReceipt('${x.id}')">✕ رفض الإيصال</button>`:''}
           </div>
         </div>
-      `).join('')
-      || '<div class="mu">لا توجد رسوم بهذا الفلتر</div>'
-    }
+      `).join('')||'<div class="card mu">لا توجد رسوم مطابقة للفلاتر الحالية.</div>'}
+    </section>
   `;
 }
 
