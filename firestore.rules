@@ -1,0 +1,453 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{d}/documents {
+    function signed() {
+  return request.auth != null;
+}
+
+function hasProfile() {
+  return exists(
+    /databases/$(d)/documents/users/$(request.auth.uid)
+  );
+}
+
+function isSuperAdmin() {
+  return signed() && (
+    request.auth.token.email == 'admin@burg26.local'
+    ||
+    (
+      hasProfile()
+      &&
+      get(
+        /databases/$(d)/documents/users/$(request.auth.uid)
+      ).data.role == 'superadmin'
+    )
+  );
+}
+
+function isAdmin() {
+  return isSuperAdmin()
+    ||
+    (
+      signed()
+      &&
+      hasProfile()
+      &&
+      get(
+        /databases/$(d)/documents/users/$(request.auth.uid)
+      ).data.role == 'admin'
+    );
+}
+
+function isRegularAdmin() {
+  return signed()
+    && hasProfile()
+    && get(
+      /databases/$(d)/documents/users/$(request.auth.uid)
+    ).data.role == 'admin';
+}
+
+function member() {
+  return isAdmin()
+    ||
+    (
+      signed()
+      &&
+      hasProfile()
+    );
+}
+
+function myUnit() {
+  return get(
+    /databases/$(d)/documents/users/$(request.auth.uid)
+  ).data.unit;
+}
+
+function validOptionalReceipt(data) {
+  return !('receipt' in data)
+    || data.receipt == ''
+    || (data.receipt is string && data.receipt.size() <= 800000);
+}
+
+function validPendingReceipt(data) {
+  return data.receipt is string
+    && data.receipt.size() > 0
+    && data.receipt.size() <= 800000;
+}
+
+function receiptWithinLimitIfChanged() {
+  return !request.resource.data.diff(resource.data)
+      .affectedKeys().hasAny(['receipt'])
+    || validOptionalReceipt(request.resource.data);
+}
+
+function pollIsOpenWithChoice(pollId, choice) {
+  let pollPath = /databases/$(d)/documents/polls/$(pollId);
+  return exists(pollPath)
+    && get(pollPath).data.open == true
+    && get(pollPath).data.options is list
+    && choice < get(pollPath).data.options.size();
+}
+
+    match /users/{uid} {
+  allow read: if signed()
+    && (
+      request.auth.uid == uid
+      || isAdmin()
+    );
+
+  allow create: if isSuperAdmin()
+    || (
+      isAdmin()
+      && request.resource.data.role == 'user'
+    );
+
+  allow update: if isSuperAdmin()
+    || (
+      isAdmin()
+      && resource.data.role == 'user'
+      && request.resource.data.role == 'user'
+    )
+    || (
+      signed()
+      && request.auth.uid == uid
+      && request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasOnly(['tokens'])
+    );
+
+  allow delete: if isSuperAdmin()
+    || (
+      isAdmin()
+      && resource.data.role == 'user'
+    );
+}
+
+    match /announcements/{id} { allow read: if member(); allow write: if isAdmin(); }
+    match /polls/{id}         { allow read: if member(); allow write: if isAdmin(); }
+    match /settings/{id} {
+      // التطبيق يستخدم مستند الدفع فقط؛ لا تُفتح إعدادات غير معروفة للسكان.
+      allow read: if id == 'pay' && member();
+      allow create, update: if id == 'pay'
+        && isAdmin()
+        && request.resource.data.keys().hasOnly(['text'])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 5000;
+      allow delete: if id == 'pay' && isAdmin();
+    }
+    match /projects/{id} {
+  allow read: if member();
+  allow create, update, delete: if isSuperAdmin();
+}
+    match /votes/{vid} {
+      // القراءة العامة مقصودة: الواجهة تعرض النتائج لكل السكان حسب قرار مالك التطبيق.
+      allow read: if member();
+      allow create: if member()
+        && request.resource.data.keys().hasAll(['poll', 'uid', 'unit', 'choice'])
+        && request.resource.data.keys().hasOnly(['poll', 'uid', 'unit', 'choice'])
+        && request.resource.data.poll is string
+        && request.resource.data.poll.size() > 0
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.unit == myUnit()
+        && request.resource.data.choice is int
+        && request.resource.data.choice >= 0
+        && pollIsOpenWithChoice(request.resource.data.poll, request.resource.data.choice)
+        && vid == request.resource.data.poll + '_' + request.auth.uid;
+      allow delete: if isAdmin();
+    }
+    match /dues/{id} {
+  // المدير والسوبر يوزر يستطيعان رؤية كل الرسوم.
+  // الساكن يرى رسوم وحدته فقط.
+  allow read: if isAdmin()
+    ||
+    (
+      member()
+      &&
+      resource.data.unit == myUnit()
+    );
+
+  // إضافة رسوم شهرية جديدة للسكان تكون للسوبر يوزر فقط.
+  allow create: if isSuperAdmin();
+
+  // حذف رسوم فردية أو دفعة رسوم يكون للسوبر يوزر فقط.
+  allow delete: if isSuperAdmin()
+  &&
+  resource.data.status == 'unpaid'
+  &&
+  (
+    !('receipt' in resource.data)
+    ||
+    resource.data.receipt == ''
+  );
+
+  allow update: if isSuperAdmin()
+    &&
+    request.resource.data.diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        'status',
+        'receipt',
+        'note',
+        'paidAt'
+      ])
+    &&
+    request.resource.data.status in [
+      'unpaid',
+      'pending',
+      'paid'
+    ]
+    && receiptWithinLimitIfChanged();
+
+  // المدير العادي يستطيع مراجعة الإيصال:
+  // تأكيد الدفع أو رفض الإيصال.
+  // لا يستطيع تغيير المبلغ أو الوحدة أو الشهر أو batchId.
+  allow update: if signed()
+    &&
+    hasProfile()
+    &&
+    get(
+      /databases/$(d)/documents/users/$(request.auth.uid)
+    ).data.role == 'admin'
+    &&
+    request.resource.data.diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        'status',
+        'receipt',
+        'note',
+        'paidAt'
+      ])
+    &&
+    request.resource.data.status in [
+      'unpaid',
+      'paid'
+    ]
+    && receiptWithinLimitIfChanged();
+
+  // الساكن يستطيع رفع إيصال رسوم وحدته فقط.
+  allow update: if member()
+    &&
+    resource.data.unit == myUnit()
+    &&
+    request.resource.data.diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        'status',
+        'receipt',
+        'note'
+      ])
+    &&
+    request.resource.data.status == 'pending'
+    && validPendingReceipt(request.resource.data);
+}
+
+
+    match /orders/{id} {
+  allow read: if isAdmin()
+    ||
+    (
+      member()
+      &&
+      resource.data.unit == myUnit()
+    );
+
+  // السوبر يوزر ينشئ الطلبات الأساسية للمشاريع الإجبارية.
+  // الساكن ينشئ طلبه الاختياري كمسودة.
+  allow create: if isSuperAdmin()
+    ||
+    (
+      member()
+      && request.resource.data.keys().hasAll([
+        'pid', 'pname', 'unit', 'kind', 'items', 'total', 'status', 'ts'
+      ])
+      && request.resource.data.keys().hasOnly([
+        'pid', 'pname', 'unit', 'kind', 'items', 'total', 'status', 'ts', 'receipt'
+      ])
+      && request.resource.data.pid is string
+      && request.resource.data.pid.size() > 0
+      && request.resource.data.pname is string
+      && request.resource.data.pname.size() > 0
+      && request.resource.data.pname.size() <= 200
+      && request.resource.data.unit == myUnit()
+      && request.resource.data.kind in ['base', 'extra']
+      && request.resource.data.items is list
+      && request.resource.data.total is number
+      && request.resource.data.total >= 0
+      && request.resource.data.status == 'draft'
+      && request.resource.data.ts is int
+      && validOptionalReceipt(request.resource.data)
+    );
+
+  // السوبر يوزر يستطيع حذف طلبات المشروع عند حذف المشروع.
+  allow delete: if isSuperAdmin()
+  &&
+  resource.data.status in [
+    'new',
+    'draft'
+  ]
+  &&
+  (
+    !('receipt' in resource.data)
+    ||
+    resource.data.receipt == ''
+  );
+
+  allow update: if isSuperAdmin()
+    &&
+    request.resource.data.diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        'status',
+        'receipt',
+        'paidAt',
+        'doneAt'
+      ])
+    &&
+    request.resource.data.status in [
+      'new',
+      'pending',
+      'paid',
+      'done'
+    ]
+    && receiptWithinLimitIfChanged();
+
+  // المدير العادي يستطيع فقط مراجعة حالة الطلب.
+  // لا يستطيع تغيير المشروع أو الوحدة أو القيمة أو البنود.
+  allow update: if isRegularAdmin()
+    &&
+    request.resource.data.diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        'status',
+        'receipt',
+        'paidAt',
+        'doneAt'
+      ])
+    &&
+    (
+      (
+        resource.data.status == 'new'
+        &&
+        request.resource.data.status == 'paid'
+      )
+      ||
+      (
+        resource.data.status == 'pending'
+        &&
+        request.resource.data.status in ['new', 'paid']
+      )
+      ||
+      (
+        resource.data.status == 'paid'
+        &&
+        request.resource.data.status == 'done'
+      )
+    )
+    && receiptWithinLimitIfChanged();
+
+  // الساكن يستطيع تعديل طلبه أثناء كونه مسودة
+  // أو إرسال الإيصال وتحويله إلى قيد المراجعة.
+  allow update: if member()
+    &&
+    resource.data.unit == myUnit()
+    &&
+    resource.data.status in ['draft', 'new']
+    &&
+    request.resource.data.diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        'items',
+        'total',
+        'status',
+        'receipt'
+      ])
+    && request.resource.data.items is list
+    && request.resource.data.total is number
+    && request.resource.data.total >= 0
+    && validOptionalReceipt(request.resource.data)
+    &&
+    (
+      request.resource.data.status == 'draft'
+      ||
+      (
+        request.resource.data.status == 'pending'
+        && validPendingReceipt(request.resource.data)
+      )
+    );
+}
+
+match /expenses/{id} {
+  allow read: if isSuperAdmin()
+    ||
+    (
+      isRegularAdmin()
+      &&
+      resource.data.createdBy == request.auth.uid
+    );
+
+  allow create: if isRegularAdmin()
+    &&
+    request.resource.data.createdBy == request.auth.uid
+    &&
+    request.resource.data.status == 'pending'
+    &&
+    request.resource.data.amount is number
+    &&
+    request.resource.data.amount > 0
+    &&
+    request.resource.data.title is string
+    &&
+    request.resource.data.title.size() > 0;
+
+  allow update: if isSuperAdmin()
+  &&
+  request.resource.data.diff(resource.data)
+    .affectedKeys()
+    .hasOnly([
+      'status',
+      'reviewedBy',
+      'reviewedAt',
+      'reviewNote',
+      'receipt'
+    ])
+  &&
+  request.resource.data.status in [
+    'pending',
+    'approved',
+    'rejected'
+  ]
+  && receiptWithinLimitIfChanged();
+
+
+  allow delete: if isSuperAdmin()
+  && resource.data.status == 'rejected';
+
+}
+
+    match /requests/{id} {
+      allow read: if isAdmin() || (member() && resource.data.uid == request.auth.uid);
+      allow create: if member()
+        && request.resource.data.keys().hasAll([
+          'title', 'body', 'uid', 'unit', 'status', 'date', 'ts'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'title', 'body', 'uid', 'unit', 'status', 'date', 'ts'
+        ])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 5000
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.unit == myUnit()
+        && request.resource.data.status == 'new'
+        && request.resource.data.date is string
+        && request.resource.data.date.size() <= 40
+        && request.resource.data.ts is int;
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['new', 'prog', 'done'];
+      allow delete: if isAdmin();
+    }
+  }
+}
