@@ -98,9 +98,9 @@ window.out=()=>signOut(auth);
 function draw(){
   if(!me)return;
   const nAnn=S.ann.filter(a=>a.ts>seen).length;
-  const tabs=admin?[['ann','الإعلانات'],['dues','الرسوم'],['req','الطلبات'],['exp','المصروفات'],...(superadmin?[['vote','التصويت']]:[]),['res','السكان'],['me','حسابي']]:[['ann','الإعلانات'],['dues','رسومي'],['req','الصيانة'],['vote','التصويت'],['me','حسابي']];
+  const tabs=admin?[['ann','الإعلانات'],['dues','الرسوم'],['req','الطلبات'],['exp','المصروفات'],...(superadmin?[['cash','الصندوق'],['vote','التصويت']]:[]),['res','السكان'],['me','حسابي']]:[['ann','الإعلانات'],['dues','رسومي'],['req','الصيانة'],['vote','التصويت'],['me','حسابي']];
   root.innerHTML=`<div class="row"><h1>🏢 برج 26</h1><button class="s" onclick="out()">خروج</button></div><div class="mu">${esc(me.name)} — ${admin?'مدير':ulabel(me.unit)}</div><div id="v"></div><nav>${tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="go('${t[0]}')">${t[1]}${t[0]==='ann'&&nAnn?`<span class="dot">${nAnn}</span>`:''}</button>`).join('')}</nav>`;
-  ({ann:vAnn,dues:admin?vDuesA:vDues,req:vReq,exp:vExpenses,vote:vVote,res:vRes,me:vMe}[tab]||vAnn)();
+  ({ann:vAnn,dues:admin?vDuesA:vDues,req:vReq,exp:vExpenses,cash:vCash,vote:vVote,res:vRes,me:vMe}[tab]||vAnn)();
 }
 window.go=t=>{
   if(t==='vote'&&admin&&!superadmin){
@@ -812,71 +812,74 @@ window.showExpenseReceipt=id=>{
   d.onclick=()=>d.remove();
   document.body.appendChild(d);
 };
+function vCash(){
+  if(!superadmin){
+    $('#v').innerHTML='<div class="card">لا تملك صلاحية عرض الصندوق</div>';
+    return;
+  }
+  const incomeRows=S.dues.filter(x=>x.status==='paid');
+  const approvedRows=S.expenses.filter(x=>x.status==='approved');
+  const pendingRows=S.expenses.filter(x=>x.status==='pending');
+  const rejectedRows=S.expenses.filter(x=>x.status==='rejected');
+  const income=incomeRows.reduce((s,x)=>s+(+x.amount||0),0);
+  const approved=approvedRows.reduce((s,x)=>s+(+x.amount||0),0);
+  const pending=pendingRows.reduce((s,x)=>s+(+x.amount||0),0);
+  const balance=income-approved;
+  const movements=[
+    ...incomeRows.map(x=>({ts:x.paidAt||x.createdAt||0,date:x.paidAt||x.month||'—',title:'رسوم '+(x.month||'شهرية'),detail:ulabel(x.unit),amount:+x.amount||0,kind:'income',status:'مدفوع'})),
+    ...approvedRows.map(x=>({ts:x.reviewedAt||x.createdAt||0,date:x.spentAt||'—',title:x.title||'مصروف',detail:x.description||'',amount:+x.amount||0,kind:'expense',status:'معتمد'}))
+  ].sort((a,b)=>Number(b.ts||0)-Number(a.ts||0)).slice(0,50);
+  $('#v').innerHTML=`
+    <div class="card"><div class="row"><h2>صندوق العمارة</h2><span class="ok">للسوبر يوزر</span></div><div class="mu">ملخص الإيرادات والمصروفات المعتمدة. المصروفات قيد المراجعة أو المرفوضة لا تخصم من الرصيد.</div></div>
+    <div class="g">
+      <div class="card"><div class="mu">الرصيد الحالي</div><h1 class="${balance<0?'bad':'ok'}">${money(balance)} جنيه</h1></div>
+      <div class="card"><div class="mu">إجمالي الإيرادات</div><h2 class="ok">${money(income)} جنيه</h2><div class="mu">${incomeRows.length} عملية مدفوعة</div></div>
+      <div class="card"><div class="mu">المصروفات المعتمدة</div><h2 class="bad">${money(approved)} جنيه</h2><div class="mu">${approvedRows.length} مصروف معتمد</div></div>
+      <div class="card"><div class="mu">قيد المراجعة</div><h2 class="wn">${money(pending)} جنيه</h2><div class="mu">${pendingRows.length} مصروف</div></div>
+    </div>
+    ${balance<0?`<div class="card bad">تحذير: المصروفات المعتمدة تتجاوز الإيرادات المسجلة للصندوق.</div>`:''}
+    <div class="card"><div class="row"><b>ملخص الحالات</b><span class="mu">${rejectedRows.length} مرفوض · ${pendingRows.length} قيد المراجعة</span></div><div class="mu">المصروفات المرفوضة لا تؤثر على حساب الصندوق.</div></div>
+    <h2>حركة الصندوق</h2>
+    <div class="card" style="overflow-x:auto"><table class="rt"><tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th><th>الحالة</th></tr>${movements.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.detail)}</td><td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td><td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td><td>${x.status}</td></tr>`).join('')||`<tr><td colspan="6" class="mu">لا توجد حركة مالية مسجلة</td></tr>`}</table></div>
+  `;
+}
+
 function vExpenses(){
-  const list=[...S.expenses].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const list=S.expenses.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if(superadmin){
-    const money=n=>(+n||0).toLocaleString('ar-EG');
-    const incomeRows=S.dues.filter(x=>x.status==='paid');
-    const approvedRows=list.filter(x=>x.status==='approved');
     const pendingRows=list.filter(x=>x.status==='pending');
-    const income=incomeRows.reduce((s,x)=>s+(+x.amount||0),0);
-    const approved=approvedRows.reduce((s,x)=>s+(+x.amount||0),0);
-    const pending=pendingRows.reduce((s,x)=>s+(+x.amount||0),0);
-    const balance=income-approved;
-    const movements=[
-      ...incomeRows.map(x=>({ts:x.paidAt||x.month||'',date:x.paidAt||x.month||'—',title:'رسوم '+(x.month||'شهرية'),unit:ulabel(x.unit),amount:+x.amount||0,kind:'income'})),
-      ...approvedRows.map(x=>({ts:x.reviewedAt||x.createdAt||0,date:x.spentAt||'—',title:x.title||'مصروف',unit:x.description||'',amount:+x.amount||0,kind:'expense'}))
-    ].sort((a,b)=>String(b.ts).localeCompare(String(a.ts))).slice(0,30);
     $('#v').innerHTML=`
-      <div class="card"><h2>صندوق العمارة</h2><div class="mu">الإيرادات هي الرسوم المدفوعة، والمصروفات تخصم بعد اعتمادها فقط.</div></div>
-      <div class="g">
-        <div class="card"><div class="mu">الرصيد الحالي</div><h1 class="${balance<0?'bad':'ok'}">${money(balance)} جنيه</h1></div>
-        <div class="card"><div class="mu">إجمالي الإيرادات</div><h2 class="ok">${money(income)} جنيه</h2><div class="mu">${incomeRows.length} عملية مدفوعة</div></div>
-        <div class="card"><div class="mu">المصروفات المعتمدة</div><h2 class="bad">${money(approved)} جنيه</h2><div class="mu">${approvedRows.length} مصروف معتمد</div></div>
-        <div class="card"><div class="mu">بانتظار المراجعة</div><h2 class="wn">${money(pending)} جنيه</h2><div class="mu">${pendingRows.length} مصروف</div></div>
-      </div>
-      ${balance<0?`<div class="card bad">تحذير: المصروفات المعتمدة تتجاوز الإيرادات المسجلة للصندوق.</div>`:''}
-      <h2>المصروفات بانتظار المراجعة</h2>
+      <div class="card"><h2>إدارة المصروفات</h2><div class="mu">راجع المصروفات وأدر حالتها. المصروف المعتمد فقط يخصم من الصندوق.</div></div>
+      <h2>بانتظار المراجعة</h2>
       ${pendingRows.map(x=>`
         <div class="card">
           <div class="row"><b>${esc(x.title||'مصروف')}</b><b class="wn">${money(x.amount)} جنيه</b></div>
-          <div>${esc(x.description||'لا توجد تفاصيل')}</div>
-          <div class="mu">التاريخ: ${esc(x.spentAt||'—')}</div>
+          <div>${esc(x.description||'لا توجد تفاصيل')}</div><div class="mu">التاريخ: ${esc(x.spentAt||'—')}</div>
           ${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}
-          <div class="mu">إيصال عند الاعتماد (اختياري)</div>
-          <input id="exReviewReceipt-${x.id}" type="file" accept="image/*">
+          <div class="mu">إيصال عند الاعتماد (اختياري)</div><input id="exReviewReceipt-${x.id}" type="file" accept="image/*">
           <div style="margin-top:10px"><button class="s" onclick="reviewExpense('${x.id}','approved')">اعتماد المصروف</button><button class="d" onclick="reviewExpense('${x.id}','rejected')">رفض المصروف</button></div>
         </div>
       `).join('')||'<div class="mu">لا توجد مصروفات بانتظار المراجعة</div>'}
       <h2>كل المصروفات</h2>
-      ${list.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).map(x=>`
-        <div class="card">
-          <div class="row"><b>${esc(x.title||'مصروف')}</b><b class="${x.status==='approved'?'ok':x.status==='rejected'?'bad':'wn'}">${x.status==='approved'?'معتمد':x.status==='rejected'?'مرفوض':'قيد المراجعة'}</b></div>
-          <div>القيمة: <b>${money(x.amount)} جنيه</b></div>
-          <div class="mu">التاريخ: ${esc(x.spentAt||'—')} · ${esc(x.description||'لا توجد تفاصيل')}</div>
-          ${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}
-          ${x.status!=='pending'?`<button class="s" onclick="resetExpenseToPending('${x.id}')">إعادة إلى قيد المراجعة</button>`:''}
-          ${x.status==='rejected'?`<button class="d" onclick="deleteRejectedExpense('${x.id}')">حذف المصروف المرفوض</button>`:''}
-        </div>
+      ${list.map(x=>`
+        <div class="card"><div class="row"><b>${esc(x.title||'مصروف')}</b><b class="${x.status==='approved'?'ok':x.status==='rejected'?'bad':'wn'}">${x.status==='approved'?'معتمد':x.status==='rejected'?'مرفوض':'قيد المراجعة'}</b></div>
+        <div>القيمة: <b>${money(x.amount)} جنيه</b></div><div class="mu">التاريخ: ${esc(x.spentAt||'—')} · ${esc(x.description||'لا توجد تفاصيل')}</div>
+        ${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}
+        ${x.status!=='pending'?`<button class="s" onclick="resetExpenseToPending('${x.id}')">إعادة إلى قيد المراجعة</button>`:''}
+        ${x.status==='rejected'?`<button class="d" onclick="deleteRejectedExpense('${x.id}')">حذف المصروف المرفوض</button>`:''}</div>
       `).join('')||'<div class="mu">لا توجد مصروفات</div>'}
-      <h2>حركة الصندوق</h2>
-      <div class="card" style="overflow-x:auto"><table class="rt"><tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th></tr>${movements.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.unit)}</td><td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td><td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td></tr>`).join('')||`<tr><td colspan="5" class="mu">لا توجد حركة مالية مسجلة</td></tr>`}</table></div>
     `;
     return;
   }
   $('#v').innerHTML=`
     <div class="card"><h2>إدخال مصروف</h2>
-      <input id="exTitle" placeholder="نوع المصروف، مثل: فاتورة كهرباء أو صيانة">
-      <input id="exAmount" type="number" min="0.01" step="0.01" placeholder="قيمة المصروف بالجنيه">
-      <textarea id="exDescription" rows="3" placeholder="تفاصيل المصروف أو سبب الدفع"></textarea>
-      <div class="mu">تاريخ المصروف</div><input id="exSpentAt" type="date" value="${new Date().toISOString().slice(0,10)}">
-      <div class="mu">صورة الإيصال (اختياري)</div><input id="exReceipt" type="file" accept="image/*">
-      <button onclick="addExpense()">حفظ المصروف للمراجعة</button>
-    </div>
-    <h2>المصروفات التي أدخلتها</h2>
+      <input id="exTitle" placeholder="نوع المصروف، مثل: فاتورة كهرباء أو صيانة"><input id="exAmount" type="number" min="0.01" step="0.01" placeholder="قيمة المصروف بالجنيه"><textarea id="exDescription" rows="3" placeholder="تفاصيل المصروف أو سبب الدفع"></textarea>
+      <div class="mu">تاريخ المصروف</div><input id="exSpentAt" type="date" value="${new Date().toISOString().slice(0,10)}"><div class="mu">صورة الإيصال (اختياري)</div><input id="exReceipt" type="file" accept="image/*"><button onclick="addExpense()">حفظ المصروف للمراجعة</button>
+    </div><h2>المصروفات التي أدخلتها</h2>
     ${list.map(x=>`<div class="card"><div class="row"><b>${esc(x.title||'مصروف')}</b><span class="${x.status==='pending'?'wn':x.status==='approved'?'ok':'bad'}">${x.status==='pending'?'بانتظار المراجعة':x.status==='approved'?'معتمد':'مرفوض'}</span></div><div>القيمة: <b>${esc(x.amount||0)} جنيه</b></div><div>التاريخ: ${esc(x.spentAt||'—')}</div><div class="mu">${esc(x.description||'لا توجد تفاصيل')}</div>${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}${x.reviewNote?`<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`:''}</div>`).join('')||'<div class="mu">لم تدخل أي مصروفات بعد</div>'}
   `;
 }
+
 window.reviewExpense=async(id,status)=>{
   if(!superadmin)return alert('ليس لديك صلاحية مراجعة المصروفات');
   const x=S.expenses.find(e=>e.id===id);
