@@ -843,6 +843,7 @@ function vCash(){
   const approved=approvedRows.reduce((s,x)=>s+(+x.amount||0),0);
   const pending=pendingRows.reduce((s,x)=>s+(+x.amount||0),0);
   const balance=income-approved;
+  const expectedBalance=balance+pendingIncome-pending;
   const movements=[
     ...incomeRows.map(x=>({ts:x.paidAt||x.createdAt||0,date:x.paidAt||x.month||'—',title:'رسوم '+(x.month||'شهرية'),detail:ulabel(x.unit),amount:+x.amount||0,kind:'income',status:'مدفوع'})),
     ...approvedRows.map(x=>({ts:x.reviewedAt||x.createdAt||0,date:x.spentAt||'—',title:x.title||'مصروف',detail:x.description||'',amount:+x.amount||0,kind:'expense',status:'معتمد'}))
