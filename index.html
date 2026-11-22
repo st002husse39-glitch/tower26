@@ -2109,7 +2109,25 @@ window.confirmCashProject=id=>{
 
 window.pjSet=(id,s)=>{
   const o=S.po.find(x=>x.id===id);
+
   if(!o)return;
+
+  if(
+    s==='new' &&
+    o.status==='pending' &&
+    !superadmin
+  ){
+    const ok=confirm(
+      'تنبيه: أنت على وشك رفض إيصال هذا الطلب وتحويل حالته من «قيد المراجعة» إلى «غير مسدد».'
+      +'\n\nالوحدة: '+ulabel(o.unit)
+      +'\nالمشروع: '+(o.pname||'مشروع')
+      +'\nالإجمالي: '+(o.total||0)+' جنيه'
+      +'\n\nسيتم حذف الإيصال المحفوظ، وسيُطلب من الساكن رفع إيصال صحيح.'
+      +'\n\nهل تريد تأكيد الرفض؟'
+    );
+
+    if(!ok)return;
+  }
 
   if(s==='cancelled'&&!confirm('إلغاء هذا الطلب؟'))return;
 
@@ -2140,8 +2158,48 @@ window.pjSet=(id,s)=>{
     if(s==='done'){
       pjMsg(o);
     }
+
+    if(
+      s==='new' &&
+      o.status==='pending' &&
+      !superadmin
+    ){
+      pjRejectMsg(o);
+    }
   });
 };
+function pjRejectMsg(o){
+  const u=pjUser(o.unit);
+  const ph=pjWa(u.contactPhone);
+
+  if(!ph){
+    return alert(
+      'تم رفض الإيصال، لكن لا يوجد رقم تواصل لهذه الوحدة. أضف الرقم من تبويب السكان.'
+    );
+  }
+
+  if(!confirm(
+    'تم رفض إيصال المشروع. هل تريد فتح واتساب لإرسال رسالة التنبيه إلى الساكن؟'
+  )){
+    return;
+  }
+
+  const msg=
+    'السيد/ '+(u.name||'الساكن')+
+    ' — '+ulabel(o.unit)+
+    '\nتم رفض إيصال التحويل الخاص بطلبكم في مشروع «'+(o.pname||'مشروع')+'».'
+    +'\nحالة الطلب الآن: غير مسدد.'
+    +'\nبرجاء فتح التطبيق ورفع إيصال التحويل الصحيح مرة أخرى.'
+    +'\nالتفاصيل: '+(pjLine(o)||'لا توجد تفاصيل إضافية')
+    +'\nالإجمالي المطلوب: '+(o.total||0)+' جنيه'
+    +'\nإدارة برج 26 — أبراج الصفوة';
+
+  window.open(
+    'https://wa.me/'+ph+'?text='+encodeURIComponent(msg),
+    '_blank'
+  );
+}
+
  function pjPaidMsg(o){
   const u=pjUser(o.unit);
   const ph=pjWa(u.contactPhone);
