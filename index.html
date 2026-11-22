@@ -780,10 +780,40 @@ window.editResident=async(id)=>{
 function vMe(){
   $('#v').innerHTML=`<div class="card"><b>تفعيل الإشعارات</b><div class="mu">على الآيفون: أضف التطبيق للشاشة الرئيسية أولًا.</div><button onclick="enablePush()">🔔 تفعيل</button></div><div class="card"><b>تغيير كلمة المرور</b><input id="op" type="password" placeholder="الحالية"><input id="np" type="password" placeholder="الجديدة (6 أحرف على الأقل)"><button onclick="chPw()">تغيير</button></div>`;
 }
- function vExpenses(){
-  const list=[...S.expenses]
-    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-
+ function readExpenseReceipt(file){
+  if(!file)return Promise.resolve('');
+  if(!file.type.startsWith('image/'))return Promise.reject(new Error('اختر صورة إيصال فقط'));
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>reject(new Error('تعذر قراءة صورة الإيصال'));
+    fr.onload=()=>{
+      const im=new Image();
+      im.onerror=()=>reject(new Error('ملف الإيصال غير صالح'));
+      im.onload=()=>{
+        const k=Math.min(1,1000/Math.max(im.width,im.height));
+        const c=document.createElement('canvas');
+        c.width=im.width*k;c.height=im.height*k;
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        const r=c.toDataURL('image/jpeg',.65);
+        if(r.length>800000)return reject(new Error('الصورة كبيرة، جرّب صورة أخرى'));
+        resolve(r);
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+window.showExpenseReceipt=id=>{
+  const x=S.expenses.find(e=>e.id===id);
+  if(!x||!x.receipt)return alert('لا توجد صورة إيصال لهذا المصروف');
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;inset:0;background:#000d;display:flex;align-items:center;justify-content:center;z-index:30;padding:20px';
+  d.innerHTML='<img src="'+x.receipt+'" style="max-width:95%;max-height:90%;object-fit:contain">';
+  d.onclick=()=>d.remove();
+  document.body.appendChild(d);
+};
+function vExpenses(){
+  const list=[...S.expenses].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if(superadmin){
     const money=n=>(+n||0).toLocaleString('ar-EG');
     const incomeRows=S.dues.filter(x=>x.status==='paid');
@@ -794,187 +824,76 @@ function vMe(){
     const pending=pendingRows.reduce((s,x)=>s+(+x.amount||0),0);
     const balance=income-approved;
     const movements=[
-      ...incomeRows.map(x=>({
-        ts:x.paidAt||x.month||'',
-        date:x.paidAt||x.month||'—',
-        title:'رسوم '+(x.month||'شهرية'),
-        unit:ulabel(x.unit),
-        amount:+x.amount||0,
-        kind:'income'
-      })),
-      ...approvedRows.map(x=>({
-        ts:x.reviewedAt||x.createdAt||0,
-        date:x.spentAt||'—',
-        title:x.title||'مصروف',
-        unit:x.description||'',
-        amount:+x.amount||0,
-        kind:'expense'
-      }))
+      ...incomeRows.map(x=>({ts:x.paidAt||x.month||'',date:x.paidAt||x.month||'—',title:'رسوم '+(x.month||'شهرية'),unit:ulabel(x.unit),amount:+x.amount||0,kind:'income'})),
+      ...approvedRows.map(x=>({ts:x.reviewedAt||x.createdAt||0,date:x.spentAt||'—',title:x.title||'مصروف',unit:x.description||'',amount:+x.amount||0,kind:'expense'}))
     ].sort((a,b)=>String(b.ts).localeCompare(String(a.ts))).slice(0,30);
-
     $('#v').innerHTML=`
-      <div class="card">
-        <h2>صندوق العمارة</h2>
-        <div class="mu">الإيرادات هي الرسوم التي أصبحت مدفوعة، والمصروفات تخصم بعد اعتمادها فقط.</div>
-      </div>
-
+      <div class="card"><h2>صندوق العمارة</h2><div class="mu">الإيرادات هي الرسوم المدفوعة، والمصروفات تخصم بعد اعتمادها فقط.</div></div>
       <div class="g">
         <div class="card"><div class="mu">الرصيد الحالي</div><h1 class="${balance<0?'bad':'ok'}">${money(balance)} جنيه</h1></div>
         <div class="card"><div class="mu">إجمالي الإيرادات</div><h2 class="ok">${money(income)} جنيه</h2><div class="mu">${incomeRows.length} عملية مدفوعة</div></div>
         <div class="card"><div class="mu">المصروفات المعتمدة</div><h2 class="bad">${money(approved)} جنيه</h2><div class="mu">${approvedRows.length} مصروف معتمد</div></div>
         <div class="card"><div class="mu">بانتظار المراجعة</div><h2 class="wn">${money(pending)} جنيه</h2><div class="mu">${pendingRows.length} مصروف</div></div>
       </div>
-
       ${balance<0?`<div class="card bad">تحذير: المصروفات المعتمدة تتجاوز الإيرادات المسجلة للصندوق.</div>`:''}
-
       <h2>المصروفات بانتظار المراجعة</h2>
       ${pendingRows.map(x=>`
         <div class="card">
           <div class="row"><b>${esc(x.title||'مصروف')}</b><b class="wn">${money(x.amount)} جنيه</b></div>
           <div>${esc(x.description||'لا توجد تفاصيل')}</div>
           <div class="mu">التاريخ: ${esc(x.spentAt||'—')}</div>
-          <div style="margin-top:10px">
-            <button class="s" onclick="reviewExpense('${x.id}','approved')">اعتماد المصروف</button>
-            <button class="d" onclick="reviewExpense('${x.id}','rejected')">رفض المصروف</button>
-          </div>
+          ${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}
+          <div class="mu">إيصال عند الاعتماد (اختياري)</div>
+          <input id="exReviewReceipt-${x.id}" type="file" accept="image/*">
+          <div style="margin-top:10px"><button class="s" onclick="reviewExpense('${x.id}','approved')">اعتماد المصروف</button><button class="d" onclick="reviewExpense('${x.id}','rejected')">رفض المصروف</button></div>
         </div>
       `).join('')||'<div class="mu">لا توجد مصروفات بانتظار المراجعة</div>'}
-
       <h2>حركة الصندوق</h2>
-      <div class="card" style="overflow-x:auto">
-        <table class="rt">
-          <tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th></tr>
-          ${movements.map(x=>`<tr>
-            <td>${esc(x.date)}</td>
-            <td>${esc(x.title)}</td>
-            <td>${esc(x.unit)}</td>
-            <td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td>
-            <td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td>
-          </tr>`).join('')||`<tr><td colspan="5" class="mu">لا توجد حركة مالية مسجلة</td></tr>`}
-        </table>
-      </div>
+      <div class="card" style="overflow-x:auto"><table class="rt"><tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th></tr>${movements.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.unit)}</td><td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td><td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td></tr>`).join('')||`<tr><td colspan="5" class="mu">لا توجد حركة مالية مسجلة</td></tr>`}</table></div>
     `;
     return;
   }
-
   $('#v').innerHTML=`
-    <div class="card">
-      <h2>إدخال مصروف</h2>
+    <div class="card"><h2>إدخال مصروف</h2>
       <input id="exTitle" placeholder="نوع المصروف، مثل: فاتورة كهرباء أو صيانة">
       <input id="exAmount" type="number" min="0.01" step="0.01" placeholder="قيمة المصروف بالجنيه">
       <textarea id="exDescription" rows="3" placeholder="تفاصيل المصروف أو سبب الدفع"></textarea>
-      <div class="mu">تاريخ المصروف</div>
-      <input id="exSpentAt" type="date" value="${new Date().toISOString().slice(0,10)}">
+      <div class="mu">تاريخ المصروف</div><input id="exSpentAt" type="date" value="${new Date().toISOString().slice(0,10)}">
+      <div class="mu">صورة الإيصال (اختياري)</div><input id="exReceipt" type="file" accept="image/*">
       <button onclick="addExpense()">حفظ المصروف للمراجعة</button>
     </div>
     <h2>المصروفات التي أدخلتها</h2>
-    ${list.map(x=>`
-      <div class="card">
-        <div class="row"><b>${esc(x.title||'مصروف')}</b><span class="${x.status==='pending'?'wn':x.status==='approved'?'ok':'bad'}">${x.status==='pending'?'بانتظار المراجعة':x.status==='approved'?'معتمد':'مرفوض'}</span></div>
-        <div>القيمة: <b>${esc(x.amount||0)} جنيه</b></div>
-        <div>التاريخ: ${esc(x.spentAt||'—')}</div>
-        <div class="mu">${esc(x.description||'لا توجد تفاصيل')}</div>
-        ${x.reviewNote?`<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`:''}
-      </div>
-    `).join('')||'<div class="mu">لم تدخل أي مصروفات بعد</div>'}
+    ${list.map(x=>`<div class="card"><div class="row"><b>${esc(x.title||'مصروف')}</b><span class="${x.status==='pending'?'wn':x.status==='approved'?'ok':'bad'}">${x.status==='pending'?'بانتظار المراجعة':x.status==='approved'?'معتمد':'مرفوض'}</span></div><div>القيمة: <b>${esc(x.amount||0)} جنيه</b></div><div>التاريخ: ${esc(x.spentAt||'—')}</div><div class="mu">${esc(x.description||'لا توجد تفاصيل')}</div>${x.receipt?`<button class="s" onclick="showExpenseReceipt('${x.id}')">عرض إيصال المصروف</button>`:''}${x.reviewNote?`<div class="mu">ملاحظة المراجعة: ${esc(x.reviewNote)}</div>`:''}</div>`).join('')||'<div class="mu">لم تدخل أي مصروفات بعد</div>'}
   `;
 }
-
-window.reviewExpense=(id,status)=>{
-  if(!superadmin){
-    return alert('ليس لديك صلاحية مراجعة المصروفات');
-  }
-
+window.reviewExpense=async(id,status)=>{
+  if(!superadmin)return alert('ليس لديك صلاحية مراجعة المصروفات');
   const x=S.expenses.find(e=>e.id===id);
-
-  if(!x){
-    return alert('لم يتم العثور على المصروف');
-  }
-
-  if(x.status!=='pending'){
-    return alert('تمت مراجعة هذا المصروف من قبل');
-  }
-
-  const action=status==='approved'
-    ? 'اعتماد هذا المصروف وخصم قيمته من رصيد الصندوق؟'
-    : 'رفض هذا المصروف وعدم خصم قيمته من رصيد الصندوق؟';
-
-  if(!confirm(
-    action
-    +'\n\nالبيان: '+(x.title||'مصروف')
-    +'\nالقيمة: '+(x.amount||0)+' جنيه'
-    +'\nالتاريخ: '+(x.spentAt||'—')
-  )){
-    return;
-  }
-
-  const note=prompt(
-    status==='approved'
-      ? 'ملاحظة الاعتماد، ويمكن تركها فارغة'
-      : 'سبب رفض المصروف'
-  );
-
-  if(note===null){
-    return;
-  }
-
+  if(!x)return alert('لم يتم العثور على المصروف');
+  if(x.status!=='pending')return alert('تمت مراجعة هذا المصروف من قبل');
+  const action=status==='approved'?'اعتماد هذا المصروف وخصم قيمته من رصيد الصندوق؟':'رفض هذا المصروف وعدم خصم قيمته من رصيد الصندوق؟';
+  if(!confirm(action+'\n\nالبيان: '+(x.title||'مصروف')+'\nالقيمة: '+(x.amount||0)+' جنيه\nالتاريخ: '+(x.spentAt||'—')))return;
+  const note=prompt(status==='approved'?'ملاحظة الاعتماد، ويمكن تركها فارغة':'سبب رفض المصروف');
+  if(note===null)return;
+  const file=status==='approved'?document.getElementById('exReviewReceipt-'+id)?.files[0]:null;
   wr(async()=>{
-    await updateDoc(
-      doc(db,'expenses',id),
-      {
-        status:status,
-        reviewedBy:auth.currentUser.uid,
-        reviewedAt:Date.now(),
-        reviewNote:note.trim()
-      }
-    );
-
-    alert(
-      status==='approved'
-        ? 'تم اعتماد المصروف، وسيُخصم من رصيد الصندوق.'
-        : 'تم رفض المصروف، ولن يُخصم من رصيد الصندوق.'
-    );
-
+    const data={status:status,reviewedBy:auth.currentUser.uid,reviewedAt:Date.now(),reviewNote:note.trim()};
+    if(file)data.receipt=await readExpenseReceipt(file);
+    await updateDoc(doc(db,'expenses',id),data);
+    alert(status==='approved'?'تم اعتماد المصروف، وسيُخصم من رصيد الصندوق.':'تم رفض المصروف، ولن يُخصم من رصيد الصندوق.');
     draw();
   });
 };
-
- window.addExpense=()=>{
-  if(!admin||superadmin){
-    return alert('إدخال المصروفات متاح للمدير العادي فقط');
-  }
-
-  const title=$('#exTitle').value.trim();
-  const amount=+$('#exAmount').value;
-  const description=$('#exDescription').value.trim();
-  const spentAt=$('#exSpentAt').value;
-
-  if(!title){
-    return alert('اكتب نوع أو سبب المصروف');
-  }
-
-  if(!(amount>0)){
-    return alert('أدخل قيمة صحيحة للمصروف');
-  }
-
-  if(!spentAt){
-    return alert('حدد تاريخ المصروف');
-  }
-
+window.addExpense=()=>{
+  if(!admin||superadmin)return alert('إدخال المصروفات متاح للمدير العادي فقط');
+  const title=$('#exTitle').value.trim(),amount=+$('#exAmount').value,description=$('#exDescription').value.trim(),spentAt=$('#exSpentAt').value,file=$('#exReceipt').files[0];
+  if(!title)return alert('اكتب نوع أو سبب المصروف');
+  if(!(amount>0))return alert('أدخل قيمة صحيحة للمصروف');
+  if(!spentAt)return alert('حدد تاريخ المصروف');
   wr(async()=>{
-    await setDoc(
-      doc(db,'expenses',uidg()),
-      {
-        title:title,
-        amount:amount,
-        description:description,
-        spentAt:spentAt,
-        status:'pending',
-        createdBy:auth.currentUser.uid,
-        createdAt:Date.now()
-      }
-    );
-
+    const data={title:title,amount:amount,description:description,spentAt:spentAt,status:'pending',createdBy:auth.currentUser.uid,createdAt:Date.now()};
+    if(file)data.receipt=await readExpenseReceipt(file);
+    await setDoc(doc(db,'expenses',uidg()),data);
     alert('تم تسجيل المصروف وإرساله إلى السوبر يوزر للمراجعة');
     draw();
   });
