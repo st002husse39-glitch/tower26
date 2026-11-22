@@ -1921,12 +1921,49 @@ window.pjCmp=()=>{pjSel='*';pjRe()};
 window.pjBack=()=>{pjSel=null;pjRe()};
 window.pjTog=id=>{const p=S.pj.find(x=>x.id===id);if(p)wr(()=>updateDoc(doc(db,'projects',id),{open:!p.open}))};
 window.pjDelP=id=>{
-   if(!superadmin){
+  if(!superadmin){
     return alert('ليس لديك صلاحية حذف المشاريع');
   }
 
-  if(!confirm('حذف المشروع وكل طلباته نهائيًا؟'))return;
-  wr(async()=>{const b=writeBatch(db);S.po.filter(x=>x.pid===id).forEach(x=>b.delete(doc(db,'orders',x.id)));b.delete(doc(db,'projects',id));await b.commit()});
+  const p=S.pj.find(x=>x.id===id);
+
+  if(!p){
+    return alert('لم يتم العثور على المشروع');
+  }
+
+  const orders=S.po.filter(x=>x.pid===id);
+
+  const blocked=orders.find(x=>
+    x.status==='pending'||
+    x.status==='paid'||
+    x.status==='done'
+  );
+
+  if(blocked){
+    return alert(
+      'لا يمكن حذف المشروع لأنه يحتوي على طلب قيد المراجعة أو مدفوع أو تم تنفيذه.'
+    );
+  }
+
+  if(!confirm(
+    'سيتم حذف المشروع وكل طلباته غير المدفوعة نهائيًا. هل تريد المتابعة؟'
+  )){
+    return;
+  }
+
+  wr(async()=>{
+    const b=writeBatch(db);
+
+    orders.forEach(x=>{
+      b.delete(doc(db,'orders',x.id));
+    });
+
+    b.delete(doc(db,'projects',id));
+
+    await b.commit();
+
+    alert('تم حذف المشروع والطلبات غير المدفوعة المرتبطة به');
+  });
 };
 
 /* التقرير */
