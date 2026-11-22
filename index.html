@@ -843,7 +843,6 @@ function vCash(){
   const approved=approvedRows.reduce((s,x)=>s+(+x.amount||0),0);
   const pending=pendingRows.reduce((s,x)=>s+(+x.amount||0),0);
   const balance=income-approved;
-  const expectedBalance=balance+pendingIncome-pending;
   const movements=[
     ...incomeRows.map(x=>({ts:x.paidAt||x.createdAt||0,date:x.paidAt||x.month||'—',title:'رسوم '+(x.month||'شهرية'),detail:ulabel(x.unit),amount:+x.amount||0,kind:'income',status:'مدفوع'})),
     ...approvedRows.map(x=>({ts:x.reviewedAt||x.createdAt||0,date:x.spentAt||'—',title:x.title||'مصروف',detail:x.description||'',amount:+x.amount||0,kind:'expense',status:'معتمد'}))
@@ -852,9 +851,9 @@ function vCash(){
     <div class="card"><div class="row"><h2>صندوق العمارة</h2><span class="ok">للسوبر يوزر</span></div><div class="mu">ملخص الإيرادات والمصروفات المعتمدة. المصروفات قيد المراجعة أو المرفوضة لا تخصم من الرصيد.</div></div>
     <div class="g">
       <div class="card"><div class="mu">الرصيد الحالي</div><h1 class="${balance<0?'bad':'ok'}">${money(balance)} جنيه</h1><div class="mu">المبالغ المعتمدة فعليًا</div></div>
-      <div class="card"><div class="mu">الرصيد المتوقع</div><h1 class="${expectedBalance<0?'bad':'ok'}">${money(expectedBalance)} جنيه</h1><div class="mu">بعد احتساب المبالغ قيد المراجعة</div></div>
       <div class="card"><div class="mu">إجمالي الإيرادات</div><h2 class="ok">${money(income)} جنيه</h2><div class="mu">${incomeRows.length} عملية مدفوعة</div></div>
-      <div class="card"><div class="mu">المصروفات المعتمدة</div><h2 class="bad">${money(approved)} جنيه</h2><div class="mu">${approvedRows.length} مصروف معتمد</div></div>
+      <div class="card"><div class="mu">إجمالي المصروفات</div><h2 class="bad">${money(approved)} جنيه</h2><div class="mu">${approvedRows.length} مصروف معتمد</div></div>
+      <div class="card"><div class="mu">الرصيد المتوقع</div><h1 class="${expectedBalance<0?'bad':'ok'}">${money(expectedBalance)} جنيه</h1><div class="mu">بعد احتساب المبالغ قيد المراجعة</div></div>
       <div class="card"><div class="mu">إيرادات قيد المراجعة</div><h2 class="wn">${money(pendingIncome)} جنيه</h2><div class="mu">${pendingIncomeRows.length} رسم</div></div>
       <div class="card"><div class="mu">مصروفات قيد المراجعة</div><h2 class="wn">${money(pending)} جنيه</h2><div class="mu">${pendingRows.length} مصروف</div></div>
     </div>
