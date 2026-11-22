@@ -834,10 +834,12 @@ function vCash(){
     return;
   }
   const incomeRows=S.dues.filter(x=>x.status==='paid');
+  const pendingIncomeRows=S.dues.filter(x=>x.status==='pending');
   const approvedRows=S.expenses.filter(x=>x.status==='approved');
   const pendingRows=S.expenses.filter(x=>x.status==='pending');
   const rejectedRows=S.expenses.filter(x=>x.status==='rejected');
   const income=incomeRows.reduce((s,x)=>s+(+x.amount||0),0);
+  const pendingIncome=pendingIncomeRows.reduce((s,x)=>s+(+x.amount||0),0);
   const approved=approvedRows.reduce((s,x)=>s+(+x.amount||0),0);
   const pending=pendingRows.reduce((s,x)=>s+(+x.amount||0),0);
   const balance=income-approved;
@@ -851,10 +853,11 @@ function vCash(){
       <div class="card"><div class="mu">الرصيد الحالي</div><h1 class="${balance<0?'bad':'ok'}">${money(balance)} جنيه</h1></div>
       <div class="card"><div class="mu">إجمالي الإيرادات</div><h2 class="ok">${money(income)} جنيه</h2><div class="mu">${incomeRows.length} عملية مدفوعة</div></div>
       <div class="card"><div class="mu">المصروفات المعتمدة</div><h2 class="bad">${money(approved)} جنيه</h2><div class="mu">${approvedRows.length} مصروف معتمد</div></div>
-      <div class="card"><div class="mu">قيد المراجعة</div><h2 class="wn">${money(pending)} جنيه</h2><div class="mu">${pendingRows.length} مصروف</div></div>
+      <div class="card"><div class="mu">إيرادات قيد المراجعة</div><h2 class="wn">${money(pendingIncome)} جنيه</h2><div class="mu">${pendingIncomeRows.length} رسم</div></div>
+      <div class="card"><div class="mu">مصروفات قيد المراجعة</div><h2 class="wn">${money(pending)} جنيه</h2><div class="mu">${pendingRows.length} مصروف</div></div>
     </div>
     ${balance<0?`<div class="card bad">تحذير: المصروفات المعتمدة تتجاوز الإيرادات المسجلة للصندوق.</div>`:''}
-    <div class="card"><div class="row"><b>ملخص الحالات</b><span class="mu">${rejectedRows.length} مرفوض · ${pendingRows.length} قيد المراجعة</span></div><div class="mu">المصروفات المرفوضة لا تؤثر على حساب الصندوق.</div></div>
+    <div class="card"><div class="row"><b>ملخص الحالات</b><span class="mu">${rejectedRows.length} مرفوض · ${pendingIncomeRows.length} رسوم قيد المراجعة · ${pendingRows.length} مصروفات قيد المراجعة</span></div><div class="mu">الإيرادات قيد المراجعة والمصروفات المعلقة لا تؤثر على الرصيد حتى اعتمادها.</div></div>
     <h2>حركة الصندوق</h2>
     <div class="card" style="overflow-x:auto"><table class="rt"><tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th><th>الحالة</th></tr>${movements.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.detail)}</td><td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td><td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td><td>${x.status}</td></tr>`).join('')||`<tr><td colspan="6" class="mu">لا توجد حركة مالية مسجلة</td></tr>`}</table></div>
   `;
