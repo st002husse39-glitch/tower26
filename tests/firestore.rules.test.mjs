@@ -118,6 +118,16 @@ test('receipt uploads respect the current 800,000-character limit', async () => 
   await assertFails(updateDoc(dueRef, {
     status: 'pending', receipt: 'x'.repeat(800001)
   }));
+
+  const admin = dbFor('admin-a');
+  const expense = {
+    title: 'Maintenance', amount: 100, description: '', spentAt: '2026-11-22',
+    status: 'pending', createdBy: 'admin-a', createdAt: 1, receipt: 'x'.repeat(800000)
+  };
+  await assertSucceeds(setDoc(doc(admin, 'expenses', 'expense-valid'), expense));
+  await assertFails(setDoc(doc(admin, 'expenses', 'expense-too-large'), {
+    ...expense, receipt: 'x'.repeat(800001)
+  }));
 });
 
 test('residents can access only the application payment settings document', async () => {

@@ -397,7 +397,8 @@ match /expenses/{id} {
     &&
     request.resource.data.title is string
     &&
-    request.resource.data.title.size() > 0;
+    request.resource.data.title.size() > 0
+    && validOptionalReceipt(request.resource.data);
 
   allow update: if isSuperAdmin()
   &&
