@@ -2332,7 +2332,24 @@ function pjUp(id,file){
     const r=c.toDataURL('image/jpeg',.6);
     if(r.length>800000)return alert('الصورة كبيرة، جرّب صورة أخرى');
     const b=pjBuild(id);
-    wr(()=>updateDoc(doc(db,'orders',id),{items:b.items,total:b.total,status:'pending',receipt:r})).then(()=>alert('تم رفع الإيصال وسيُراجع قريبًا'));
+    (async()=>{
+  try{
+    await updateDoc(
+      doc(db,'orders',id),
+      {
+        items:b.items,
+        total:b.total,
+        status:'pending',
+        receipt:r
+      }
+    );
+
+    alert('تم رفع الإيصال وتحويل الطلب إلى قيد المراجعة');
+  }catch(e){
+    err(e);
+  }
+})();
+
   };
   im.src=URL.createObjectURL(file);
 }
