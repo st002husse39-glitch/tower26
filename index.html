@@ -141,9 +141,11 @@ function upload(file){
 function vDuesA(){
   const l=S.dues.filter(x=>x.month===M);
   const filter=window.duesFilter||'all';
+  const unitFilter=window.duesUnitFilter||'all';
 
   const filtered=l.filter(x=>
-    filter==='all'||x.status===filter
+    (filter==='all'||x.status===filter)&&
+    (unitFilter==='all'||x.unit===unitFilter)
   );
 
   const n=s=>l.filter(x=>x.status===s).length;
@@ -165,12 +167,9 @@ function vDuesA(){
 
   $('#v').innerHTML=`
     <div class="card">
-      <input
-        id="m"
-        type="month"
-        value="${M}"
-        onchange="M=this.value;draw()"
-      >
+      <div class="row"><input id="m" type="month" value="${M}" onchange="M=this.value;draw()"><button class="s" onclick="clearDuesFilters()">مسح الفلاتر</button></div>
+
+      <select onchange="window.duesUnitFilter=this.value;draw()"><option value="all" ${unitFilter==='all'?'selected':''}>كل الوحدات</option>${UNITS.map(u=>`<option value="${u.id}" ${unitFilter===u.id?'selected':''}>${u.label}</option>`).join('')}</select>
 
       <div class="g">
         <div>
@@ -339,6 +338,7 @@ function vDuesA(){
 }
 
 window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
+window.clearDuesFilters=()=>{M=month0();window.duesFilter='all';window.duesUnitFilter='all';draw()};
 window.savePay=()=>wr(()=>setDoc(doc(db,'settings','pay'),{text:$('#pt').value}));
 window.setD=(id,s)=>wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:today()}:{status:s,receipt:'',note:''}));
 window.confirmCashDue=id=>{
