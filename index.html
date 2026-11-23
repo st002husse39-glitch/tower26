@@ -69,28 +69,61 @@ const err=e=>alert('تعذر تنفيذ العملية: '+(e.code||e.message));
 const wr=async f=>{try{await f()}catch(e){err(e)}};
 
 function notify(t,b){try{if(Notification.permission==='granted')new Notification(t,{body:b})}catch(e){}}
+let feedUnsubs=[],loadedFeeds=new Set();
+function clearDataFeeds(){
+  feedUnsubs.forEach(f=>f());feedUnsubs=[];loadedFeeds.clear();ready={};
+  S.ann=[];S.dues=[];S.req=[];S.polls=[];S.votes=[];S.users=[];S.expenses=[];S.set={};
+}
 function sub(key,q,onNew){
-  unsubs.push(onSnapshot(q,s=>{
+  if(loadedFeeds.has(key))return;
+  loadedFeeds.add(key);
+  const stop=onSnapshot(q,s=>{
     S[key]=s.docs.map(d=>({id:d.id,...d.data()}));
     if(ready[key]&&onNew)s.docChanges().forEach(c=>onNew(c));
     ready[key]=1;draw();
-  },e=>console.warn(key,e.code)));
+  },e=>{loadedFeeds.delete(key);console.warn(key,e.code)});
+  feedUnsubs.push(stop);
+}
+function watchDoc(key,ref){
+  if(loadedFeeds.has(key))return;
+  loadedFeeds.add(key);
+  const stop=onSnapshot(ref,s=>{S[key]=s.data()||{};draw()},e=>{loadedFeeds.delete(key);console.warn(key,e.code)});
+  feedUnsubs.push(stop);
 }
 function startData(){
   const c=n=>collection(db,n);
-  sub('ann',c('announcements'),c=>{if(c.type==='added'&&!admin)notify('📢 '+c.doc.data().title,c.doc.data().body)});
-  sub('polls',c('polls'));sub('votes',c('votes'));
-  unsubs.push(onSnapshot(doc(db,'settings','pay'),s=>{S.set=s.data()||{};draw()},()=>{}));
-  if(admin){sub('dues',c('dues'),c=>{if(c.doc.data().status==='pending'&&c.type!=='removed')notify('🧾 إيصال جديد',ulabel(c.doc.data().unit))});
-    sub('req',c('requests'),c=>{if(c.type==='added')notify('🔧 طلب صيانة',c.doc.data().title)});
-sub('users',c('users'));
-sub('expenses',superadmin?c('expenses'):query(c('expenses'),where('createdBy','==',auth.currentUser.uid)));
+  if(tab==='ann'){
+    sub('ann',c('announcements'),x=>{if(x.type==='added'&&!admin)notify('📢 '+x.doc.data().title,x.doc.data().body)});
+  }else if(tab==='dues'){
+    watchDoc('set',doc(db,'settings','pay'));
+    if(admin){
+      sub('dues',c('dues'),x=>{if(x.doc.data().status==='pending'&&x.type!=='removed')notify('🧾 إيصال جديد',ulabel(x.doc.data().unit))});
+      sub('users',c('users'));
+    }else{
+      sub('dues',query(c('dues'),where('unit','==',me.unit)),x=>{if(x.type==='modified'){const d=x.doc.data();notify('رسوم '+d.month,ST[d.status][0])}});
+      syncPjSubscription();
+    }
+  }else if(tab==='req'){
+    if(admin)sub('req',c('requests'),x=>{if(x.type==='added')notify('🔧 طلب صيانة',x.doc.data().title)});
+    else sub('req',query(c('requests'),where('uid','==',auth.currentUser.uid)),x=>{if(x.type==='modified')notify('🔧 تحديث الطلب',x.doc.data().title+': '+RS[x.doc.data().status])});
+  }else if(tab==='vote'){
+    sub('polls',c('polls'));sub('votes',c('votes'));
+  }else if(tab==='exp'&&admin){
+    sub('expenses',superadmin?c('expenses'):query(c('expenses'),where('createdBy','==',auth.currentUser.uid)));
+  }else if(tab==='cash'&&superadmin){
+    sub('dues',c('dues'));sub('expenses',c('expenses'));
+  }else if(tab==='res'&&admin){
+    sub('users',c('users'));
+  }else if(tab==='rep'&&admin){
+    sub('dues',c('dues'));sub('users',c('users'));
+  }else if(tab==='pj'){
+    if(admin)sub('users',c('users'));
+    syncPjSubscription();
+  }
 }
-  else{sub('dues',query(c('dues'),where('unit','==',me.unit)),c=>{if(c.type==='modified'){const d=c.doc.data();notify('رسوم '+d.month,ST[d.status][0])}});
-    sub('req',query(c('requests'),where('uid','==',auth.currentUser.uid)),c=>{if(c.type==='modified')notify('🔧 تحديث الطلب',c.doc.data().title+': '+RS[c.doc.data().status])})}
-}
+
 onAuthStateChanged(auth,async u=>{
-  unsubs.forEach(f=>f());unsubs=[];ready={};me=null;
+  unsubs.forEach(f=>f());unsubs=[];clearDataFeeds();me=null;pjStop();pjUid=null;pjAdm=null;
   if(!u)return loginView();
   superadmin=u.email===ADMIN_EMAIL;
 admin=superadmin;
@@ -98,7 +131,14 @@ admin=superadmin;
     if(!s.exists()){
       if(admin){await setDoc(doc(db,'users',u.uid),{name:'مدير العمارة',role:'admin',unit:'',username:'admin'},{merge:true});return}
       root.innerHTML='<div class="card">حسابك غير مفعّل. تواصل مع إدارة العمارة.</div><button onclick="out()">خروج</button>';return}
-    const first=!me;me=s.data();if(first){startData()}draw();
+    const profile=s.data();
+    const nextSuper=u.email===ADMIN_EMAIL||profile.role==='superadmin';
+    const nextAdmin=nextSuper||profile.role==='admin';
+    if(nextSuper!==superadmin||nextAdmin!==admin){
+      superadmin=nextSuper;admin=nextAdmin;
+      clearDataFeeds();pjStop();pjUid=null;pjAdm=null;
+    }
+    me=profile;draw();
   },()=>{}));
 });
 function loginView(){root.innerHTML=`<h1>🏢 برج 26 — أبراج الصفوة</h1><div class="card"><input id="u" placeholder="اسم المستخدم" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة المرور" autocomplete="current-password"><button onclick="login()">دخول</button><div id="e" class="bad"></div></div>`}
@@ -107,6 +147,7 @@ window.out=()=>signOut(auth);
 
 function draw(){
   if(!me)return;
+  startData();
   const nAnn=S.ann.filter(a=>a.ts>seen).length;
   const tabs=admin?[['ann','الإعلانات'],['dues','الرسوم'],['req','الطلبات'],['exp','المصروفات'],...(superadmin?[['cash','الصندوق'],['vote','التصويت']]:[]),['res','السكان'],['me','حسابي']]:[['ann','الإعلانات'],['dues','رسومي'],['req','الصيانة'],['vote','التصويت'],['me','حسابي']];
   root.innerHTML=`<div class="row"><h1>🏢 برج 26</h1><button class="s" onclick="out()">خروج</button></div><div class="mu">${esc(me.name)} — ${admin?'مدير':ulabel(me.unit)}</div><div id="v"></div><nav>${tabs.map(t=>`<button class="${tab===t[0]?'on':''}" onclick="go('${t[0]}')">${t[1]}${t[0]==='ann'&&nAnn?`<span class="dot">${nAnn}</span>`:''}</button>`).join('')}</nav>`;
@@ -1322,36 +1363,6 @@ function repSync(){
 window.rpSet=(k,val)=>{rp[k]=val;repMo.disconnect();try{repRender()}finally{repMo.takeRecords();repWatch()}};
 repSync();
  /* ===== مديرون متعددون ===== */
-onAuthStateChanged(auth,u=>{
-  if(!u)return;
-  onSnapshot(doc(db,'users',u.uid),s=>{
-    if(!auth.currentUser||auth.currentUser.uid!==u.uid)return;
-    if(s.exists()){
-  const role=s.data().role;
-
-  const nextSuper=
-    auth.currentUser.email===ADMIN_EMAIL
-    || role==='superadmin';
-
-  const nextAdmin=
-    nextSuper
-    || role==='admin';
-
-  if(nextSuper!==superadmin||nextAdmin!==admin){
-    superadmin=nextSuper;
-    admin=nextAdmin;
-
-    if(me){
-      unsubs.forEach(f=>f());
-      unsubs=[];
-      ready={};
-      startData();
-      draw();
-    }
-  }
-}
-  },()=>{});
-});
 function admUI(){
   if(!superadmin||tab!=='res')return;
 
@@ -1495,20 +1506,30 @@ const pjBuild=id=>{
 };
 
 /* الاشتراك في البيانات */
-function pjStart(){
+let pjFeedKeys=new Set();
+function pjStart(includeCatalog=true,includeOrders=true){
   pjAdm=admin;
   const c=n=>collection(db,n);
-  const h=(k,q)=>pjUn.push(onSnapshot(q,s=>{S[k]=s.docs.map(d=>({id:d.id,...d.data()}));pjRef()},e=>console.warn(k,e.code)));
-  h('pj',c('projects'));
-  h('po',admin?c('orders'):query(c('orders'),where('unit','==',me.unit)));
+  const h=(k,q)=>{
+    if(pjFeedKeys.has(k))return;
+    pjFeedKeys.add(k);
+    pjUn.push(onSnapshot(q,s=>{S[k]=s.docs.map(d=>({id:d.id,...d.data()}));pjRef()},e=>{pjFeedKeys.delete(k);console.warn(k,e.code)}));
+  };
+  if(includeCatalog)h('pj',c('projects'));
+  if(includeOrders)h('po',admin?c('orders'):query(c('orders'),where('unit','==',me.unit)));
 }
-function pjStop(){pjUn.forEach(f=>f());pjUn=[]}
+function pjStop(){pjUn.forEach(f=>f());pjUn=[];pjFeedKeys.clear()}
 const pjRef=()=>{if(me)draw()};
-setInterval(()=>{
+function syncPjSubscription(){
   const u=auth.currentUser;
-  if(u&&me&&(pjUid!==u.uid||pjAdm!==admin)){pjStop();pjUid=u.uid;pjStart()}
-  else if(!u&&pjUid){pjStop();pjUid=null;S.pj=[];S.po=[]}
-},700);
+  if(!u||!me){
+    if(pjUid){pjStop();pjUid=null;pjAdm=null;S.pj=[];S.po=[];}
+    return;
+  }
+  if(pjUid!==u.uid||pjAdm!==admin){pjStop();pjUid=u.uid;pjAdm=admin;S.pj=[];S.po=[];}
+  if(tab==='pj')pjStart(true,true);
+  else if(tab==='dues'&&!admin)pjStart(false,true);
+}
 
 /* التبويب */
 document.head.insertAdjacentHTML('beforeend','<style>.pjt{width:100%;border-collapse:collapse}.pjt th,.pjt td{padding:6px 8px;text-align:right;font-size:14px;border-bottom:1px solid var(--bd);white-space:nowrap}.pjp{display:none}@media print{.pjp{display:block}nav,.noprint,#app>.row,#app>.mu{display:none!important}:root{--bg:#fff;--card:#fff;--tx:#000;--mu:#444;--bd:#ccc;--ok:#166534;--bad:#991b1b;--wn:#92400e}body{max-width:none}}</style>');
@@ -2219,5 +2240,3 @@ pjW();pjSync();
 </script>
 </body>
 </html>
-
-
