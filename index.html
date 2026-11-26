@@ -44,7 +44,7 @@ nav button.on{color:var(--pr);font-weight:700}
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword,updatePassword,EmailAuthProvider,reauthenticateWithCredential} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,writeBatch,query,where,arrayUnion} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,writeBatch,query,where,arrayUnion,increment} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {getMessaging,getToken} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 const CFG={apiKey:"AIzaSyAR1WLDgsyxZmClQhXwWzyhk-YJDQvCV3Q",authDomain:"safwa-towers-b26.firebaseapp.com",projectId:"safwa-towers-b26",storageBucket:"safwa-towers-b26.firebasestorage.app",messagingSenderId:"39177856586",appId:"1:39177856586:web:40a41d72bc0947caa128b3"};
@@ -56,6 +56,7 @@ const app0=initializeApp(CFG),auth=getAuth(app0),db=getFirestore(app0);
 const $=s=>document.querySelector(s),root=$('#app');
 const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>Number(n||0).toLocaleString('ar-EG');
+const money2=n=>Number(n||0).toLocaleString('ar-EG',{minimumFractionDigits:2,maximumFractionDigits:2});
 const uidg=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const today=()=>new Date().toLocaleDateString('ar-EG');
 const month0=()=>new Date().toISOString().slice(0,7);
@@ -64,7 +65,7 @@ const UNITS=[...Array.from({length:8},(_,i)=>({id:'S'+(i+1),label:'محل '+(i+1
 const ulabel=id=>(UNITS.find(u=>u.id===id)||{label:id||'—'}).label;
 const ST={unpaid:['غير مدفوع','bad'],pending:['قيد المراجعة','wn'],paid:['مدفوع','ok']};
 const RS={new:'جديد',prog:'قيد التنفيذ',done:'تم'};
-let me=null,admin=false,superadmin=false,tab='ann',M=month0(),duesAddMonth=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],expenses:[],set:{}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
+let me=null,admin=false,superadmin=false,tab='ann',M=month0(),duesAddMonth=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],expenses:[],set:{},cashSummary:{approvedExpenses:0}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
 const err=e=>alert('تعذر تنفيذ العملية: '+(e.code||e.message));
 const wr=async f=>{try{await f()}catch(e){err(e)}};
 
@@ -72,7 +73,7 @@ function notify(t,b){try{if(Notification.permission==='granted')new Notification
 let feedUnsubs=[],loadedFeeds=new Set();
 function clearDataFeeds(){
   feedUnsubs.forEach(f=>f());feedUnsubs=[];loadedFeeds.clear();ready={};
-  S.ann=[];S.dues=[];S.req=[];S.polls=[];S.votes=[];S.users=[];S.expenses=[];S.set={};
+  S.ann=[];S.dues=[];S.req=[];S.polls=[];S.votes=[];S.users=[];S.expenses=[];S.set={};S.cashSummary={approvedExpenses:0};delete S.cashSummaryError;
 }
 function sub(key,q,onNew){
   if(loadedFeeds.has(key))return;
@@ -87,7 +88,11 @@ function sub(key,q,onNew){
 function watchDoc(key,ref){
   if(loadedFeeds.has(key))return;
   loadedFeeds.add(key);
-  const stop=onSnapshot(ref,s=>{S[key]=s.data()||{};draw()},e=>{loadedFeeds.delete(key);console.warn(key,e.code)});
+  const stop=onSnapshot(ref,s=>{S[key]=s.data()||{};if(key==='cashSummary')delete S.cashSummaryError;draw()},e=>{
+    console.warn(key,e.code);
+    if(key==='cashSummary'){S.cashSummaryError=e.code;draw()}
+    else loadedFeeds.delete(key);
+  });
   feedUnsubs.push(stop);
 }
 function startData(){
@@ -96,6 +101,7 @@ function startData(){
     sub('ann',c('announcements'),x=>{if(x.type==='added'&&!admin)notify('📢 '+x.doc.data().title,x.doc.data().body)});
   }else if(tab==='dues'){
     watchDoc('set',doc(db,'settings','pay'));
+    if(!admin)watchDoc('cashSummary',doc(db,'settings','cashSummary'));
     if(admin){
       sub('dues',c('dues'),x=>{if(x.doc.data().status==='pending'&&x.type!=='removed')notify('🧾 إيصال جديد',ulabel(x.doc.data().unit))});
       sub('users',c('users'));
@@ -737,6 +743,14 @@ function filteredExpenses(list){
 window.applyExpenseFilters=()=>{expenseStatusFilter=$('#expenseStatusFilter').value;expenseMonthFilter=$('#expenseMonthFilter').value;draw()};
 window.clearExpenseFilters=()=>{expenseStatusFilter='all';expenseMonthFilter='all';draw()};
 
+window.rebuildCashSummary=()=>{
+  if(!superadmin)return alert('هذه العملية متاحة للسوبر يوزر فقط');
+  if(!ready.expenses)return alert('انتظر حتى يكتمل تحميل سجلات المصروفات ثم أعد المحاولة');
+  const total=S.expenses.filter(x=>x.status==='approved').reduce((s,x)=>s+(+x.amount||0),0);
+  if(!confirm('سيُعاد حساب إجمالي المصروفات المعتمدة من سجلات الصندوق الحالية. هذه العملية مفيدة بعد حذف بيانات الاختبار أو عند مراجعة الإجمالي.\n\nالإجمالي الحالي: '+money2(total)+' جنيه\n\nهل تريد المتابعة؟'))return;
+  wr(async()=>{await setDoc(doc(db,'settings','cashSummary'),{approvedExpenses:total,unitCount:UNITS.length,updatedAt:Date.now()},{merge:true});alert('تمت مزامنة إجمالي المصروفات المعتمدة.');});
+};
+
 function vCash(){
   if(!superadmin){
     $('#v').innerHTML='<div class="card">لا تملك صلاحية عرض الصندوق</div>';
@@ -758,7 +772,7 @@ function vCash(){
     ...approvedRows.map(x=>({ts:x.reviewedAt||x.createdAt||0,date:x.spentAt||'—',title:x.title||'مصروف',detail:x.description||'',amount:+x.amount||0,kind:'expense',status:'معتمد'}))
   ].sort((a,b)=>Number(b.ts||0)-Number(a.ts||0)).slice(0,50);
   $('#v').innerHTML=`
-    <div class="card"><div class="row"><h2>صندوق العمارة</h2><span class="ok">للسوبر يوزر</span></div><div class="mu">ملخص الإيرادات والمصروفات المعتمدة. المصروفات قيد المراجعة أو المرفوضة لا تخصم من الرصيد.</div></div>
+    <div class="card"><div class="row"><h2>صندوق العمارة</h2><span class="ok">للسوبر يوزر</span></div><div class="mu">ملخص الإيرادات والمصروفات المعتمدة. المصروفات قيد المراجعة أو المرفوضة لا تخصم من الرصيد.</div><button class="s" onclick="rebuildCashSummary()">إعادة مزامنة إجمالي المصروفات المعتمدة</button></div>
     <div class="g">
       <div class="card"><div class="mu">الرصيد الحالي</div><h1 class="${balance<0?'bad':'ok'}">${money(balance)} جنيه</h1><div class="mu">المبالغ المعتمدة فعليًا</div></div>
       <div class="card"><div class="mu">إجمالي الإيرادات</div><h2 class="ok">${money(income)} جنيه</h2><div class="mu">${incomeRows.length} عملية مدفوعة</div></div>
@@ -825,7 +839,12 @@ window.reviewExpense=async(id,status)=>{
   wr(async()=>{
     const data={status:status,reviewedBy:auth.currentUser.uid,reviewedAt:Date.now(),reviewNote:note.trim()};
     if(file)data.receipt=await readExpenseReceipt(file);
-    await updateDoc(doc(db,'expenses',id),data);
+    const b=writeBatch(db);
+    b.update(doc(db,'expenses',id),data);
+    if(status==='approved')b.set(doc(db,'settings','cashSummary'),{
+      approvedExpenses:increment(+x.amount||0),unitCount:UNITS.length,updatedAt:Date.now()
+    },{merge:true});
+    await b.commit();
     alert(status==='approved'?'تم اعتماد المصروف، وسيُخصم من رصيد الصندوق.':'تم رفض المصروف، ولن يُخصم من رصيد الصندوق.');
     draw();
   });
@@ -843,12 +862,17 @@ window.resetExpenseToPending=id=>{
   );
   if(!ok)return;
   wr(async()=>{
-    await updateDoc(doc(db,'expenses',id),{
+    const b=writeBatch(db);
+    b.update(doc(db,'expenses',id),{
       status:'pending',
       reviewedBy:'',
       reviewedAt:0,
       reviewNote:'تم إرجاع المصروف للمراجعة بواسطة السوبر يوزر'
     });
+    if(x.status==='approved')b.set(doc(db,'settings','cashSummary'),{
+      approvedExpenses:increment(-(+x.amount||0)),unitCount:UNITS.length,updatedAt:Date.now()
+    },{merge:true});
+    await b.commit();
     alert('تم إرجاع المصروف إلى قيد المراجعة، وتمت إزالته من المصروفات المعتمدة.');
     draw();
   });
@@ -1083,6 +1107,30 @@ const _vD2=vDues;
 
 vDues=function(){
   _vD2();
+
+  const paidByUnit=S.dues
+    .filter(x=>x.status==='paid')
+    .reduce((sum,x)=>sum+(+x.amount||0),0);
+  const summaryOk=!S.cashSummaryError;
+  const approvedExpenses=summaryOk?(+S.cashSummary.approvedExpenses||0):0;
+  const expenseShare=approvedExpenses/UNITS.length;
+  const netContribution=paidByUnit-expenseShare;
+  const accountCard=document.createElement('div');
+  accountCard.className='card';
+  accountCard.innerHTML=`
+    <div class="row"><h2>كشف مساهمة الوحدة في صندوق العمارة</h2><span class="mu">${UNITS.length} وحدة · حصة متساوية</span></div>
+    <div class="g">
+      <div><div class="mu">رسوم مدفوعة</div><b class="ok">${money2(paidByUnit)}</b><div class="mu">جنيه</div></div>
+      <div><div class="mu">حصة المصروفات المعتمدة</div><b class="bad">${summaryOk?money2(expenseShare):'غير متاح'}</b><div class="mu">${summaryOk?'جنيه':''}</div></div>
+      <div><div class="mu">صافي المساهمة الدفتري</div><b class="${netContribution<0?'bad':'ok'}">${summaryOk?money2(netContribution):'غير متاح'}</b><div class="mu">${summaryOk?'جنيه':''}</div></div>
+    </div>
+    <div class="mu" style="margin-top:10px">حصة الوحدة = إجمالي المصروفات المعتمدة ÷ ${UNITS.length}. الوحدات الشاغرة داخلة في القسمة وتتراكم عليها حصتها للتحصيل عند إسكانها. هذا رصيد دفتري تقديري وليس مبلغًا نقديًا مخصصًا أو مستحقًا للاسترداد تلقائيًا. الرسوم غير المسددة تظهر منفصلة أعلاه.</div>
+    ${S.cashSummaryError?`<div class="bad">تعذر قراءة ملخص المصروفات (${esc(S.cashSummaryError)}). يلزم السماح للسكان بقراءة المستند settings/cashSummary في قواعد Firestore.</div>`:''}
+    ${!S.cashSummaryError&&!S.cashSummary.updatedAt?`<div class="mu">لم تتم مزامنة ملخص المصروفات بعد. افتح «الصندوق» بحساب السوبر أدمن واضغط «إعادة مزامنة إجمالي المصروفات المعتمدة».</div>`:''}
+    <div class="mu">آخر تحديث لملخص المصروفات: ${S.cashSummary.updatedAt?new Date(S.cashSummary.updatedAt).toLocaleString('ar-EG'):'لم يُسجل بعد'}</div>
+  `;
+  const dueSummary=document.querySelector('#v .card');
+  if(dueSummary)dueSummary.after(accountCard);else $('#v').prepend(accountCard);
 
   const projectOrders=(S.po||[])
     .filter(x=>x.unit===me.unit&&x.status!=='cancelled')
