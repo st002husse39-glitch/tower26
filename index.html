@@ -79,26 +79,29 @@ const wr=async f=>{try{await f()}catch(e){err(e)}};
 function notify(t,b){try{if(Notification.permission==='granted')new Notification(t,{body:b})}catch(e){}}
 let feedUnsubs=[],loadedFeeds=new Set();
 let receiptCleanupMonthInFlight='';
-function sixMonthsBefore(ts){
+function monthsBefore(ts,months){
   const d=new Date(ts),day=d.getDate();
-  d.setDate(1);d.setMonth(d.getMonth()-6);
+  d.setDate(1);d.setMonth(d.getMonth()-months);
   d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));
   return d.getTime();
 }
 async function cleanupOldReceipts(uid,profile){
   if(!superadmin)return;
-  const month=month0();
+  const now=new Date();
+  if(now.getDate()!==1)return;
+  const month=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   if(profile.receiptCleanupMonth===month||receiptCleanupMonthInFlight===month)return;
   receiptCleanupMonthInFlight=month;
   try{
-    const cutoff=sixMonthsBefore(Date.now());
-    for(const name of ['dues','orders']){
-      const snap=await getDocs(query(collection(db,name),where('paidAt','<=',cutoff)));
+    const cutoff=monthsBefore(now.getTime(),3);
+    for(const name of ['dues','orders','expenses']){
+      const dateField=name==='expenses'?'reviewedAt':'paidAt';
+      const snap=await getDocs(query(collection(db,name),where(dateField,'>=',1),where(dateField,'<=',cutoff)));
       const changes=snap.docs.flatMap(d=>{
         const data=d.data();
-        if(typeof data.paidAt!=='number')return [];
-        const patch={paidAt:new Date(data.paidAt).toISOString()};
-        const accepted=name==='orders'?(data.status==='paid'||data.status==='done'):data.status==='paid';
+        if(typeof data[dateField]!=='number')return [];
+        const patch={[dateField]:new Date(data[dateField]).toISOString()};
+        const accepted=name==='orders'?(data.status==='paid'||data.status==='done'):name==='expenses'?data.status==='approved':data.status==='paid';
         if(accepted&&typeof data.receipt==='string'&&data.receipt.startsWith('data:image/'))patch.receipt='';
         return [{ref:d.ref,patch}];
       });
@@ -886,6 +889,7 @@ window.reviewExpense=async(id,status)=>{
   const file=status==='approved'?document.getElementById('exReviewReceipt-'+id)?.files[0]:null;
   wr(async()=>{
     const data={status:status,reviewedBy:auth.currentUser.uid,reviewedAt:Date.now(),reviewNote:note.trim()};
+    if(status==='rejected')data.receipt='';
     if(file)data.receipt=await readExpenseReceipt(file);
     const b=writeBatch(db);
     b.update(doc(db,'expenses',id),data);
