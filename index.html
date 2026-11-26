@@ -27,6 +27,11 @@ nav button.on{color:var(--pr);font-weight:700}
 .bar{height:8px;background:var(--bd);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pr)}
 #ov{position:fixed;inset:0;background:#000d;display:none;align-items:center;justify-content:center;z-index:9}#ov img{max-width:95%;max-height:90%}
 .g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}.g b{font-size:22px;display:block}
+.fund-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center;margin:12px 0}
+.fund-metric{min-width:0;border:1px solid var(--bd);border-radius:12px;padding:10px 6px;background:var(--bg)}
+.fund-metric .label{min-height:2.7em;display:flex;align-items:center;justify-content:center;line-height:1.3;font-size:13px}
+.fund-metric b{display:block;font-size:clamp(13px,4vw,20px);line-height:1.3;white-space:nowrap}
+.fund-metric .unit{font-size:12px;line-height:1.3}
 
 .section-card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 4px 16px #0000000d}
 .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
@@ -1123,10 +1128,10 @@ vDues=function(){
   accountCard.className='card';
   accountCard.innerHTML=`
     <div class="row"><h2>كشف مساهمة الوحدة في صندوق العمارة</h2><span class="mu">${UNITS.length} وحدة · حصة متساوية</span></div>
-    <div class="g">
-      <div><div class="mu">رسوم مدفوعة</div><b class="ok">${money2(paidByUnit)}</b><div class="mu">جنيه</div></div>
-      <div><div class="mu">حصة المصروفات المعتمدة</div><b class="bad">${summaryOk?money2(expenseShare):'غير متاح'}</b><div class="mu">${summaryOk?'جنيه':''}</div></div>
-      <div><div class="mu">صافي المساهمة الدفتري</div><b class="${netContribution<0?'bad':'ok'}">${summaryOk?money2(netContribution):'غير متاح'}</b><div class="mu">${summaryOk?'جنيه':''}</div></div>
+    <div class="fund-metrics">
+      <div class="fund-metric"><div class="mu label">رسوم مدفوعة</div><b class="ok">${money2(paidByUnit)}</b><div class="mu unit">جنيه</div></div>
+      <div class="fund-metric"><div class="mu label">حصة المصروفات المعتمدة</div><b class="bad">${summaryOk?money2(expenseShare):'غير متاح'}</b><div class="mu unit">${summaryOk?'جنيه':''}</div></div>
+      <div class="fund-metric"><div class="mu label">صافي المساهمة الدفتري</div><b class="${netContribution<0?'bad':'ok'}">${summaryOk?money2(netContribution):'غير متاح'}</b><div class="mu unit">${summaryOk?'جنيه':''}</div></div>
     </div>
     <div class="mu" style="margin-top:10px">حصة الوحدة = إجمالي المصروفات المعتمدة ÷ ${UNITS.length}. الوحدات الشاغرة داخلة في القسمة وتتراكم عليها حصتها للتحصيل عند إسكانها. هذا رصيد دفتري تقديري وليس مبلغًا نقديًا مخصصًا أو مستحقًا للاسترداد تلقائيًا. الرسوم غير المسددة تظهر منفصلة أعلاه.</div>
     ${S.cashSummaryError?`<div class="bad">تعذر قراءة ملخص المصروفات (${esc(S.cashSummaryError)}). يلزم السماح للسكان بقراءة المستند settings/cashSummary في قواعد Firestore.</div>`:''}
