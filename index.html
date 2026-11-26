@@ -851,6 +851,7 @@ window.reviewExpense=async(id,status)=>{
 };
 window.resetExpenseToPending=id=>{
   if(!superadmin)return alert('ليس لديك صلاحية إعادة المصروف للمراجعة');
+  if(!ready.expenses)return alert('انتظر حتى يكتمل تحميل سجلات المصروفات ثم أعد المحاولة');
   const x=S.expenses.find(e=>e.id===id);
   if(!x)return alert('لم يتم العثور على المصروف');
   if(x.status==='pending')return alert('هذا المصروف بالفعل قيد المراجعة');
@@ -861,6 +862,9 @@ window.resetExpenseToPending=id=>{
     '\n\nهل تريد المتابعة؟'
   );
   if(!ok)return;
+  const approvedExpensesAfter=S.expenses
+    .filter(e=>e.id!==id&&e.status==='approved')
+    .reduce((sum,e)=>sum+(+e.amount||0),0);
   wr(async()=>{
     const b=writeBatch(db);
     b.update(doc(db,'expenses',id),{
@@ -870,7 +874,7 @@ window.resetExpenseToPending=id=>{
       reviewNote:'تم إرجاع المصروف للمراجعة بواسطة السوبر يوزر'
     });
     if(x.status==='approved')b.set(doc(db,'settings','cashSummary'),{
-      approvedExpenses:increment(-(+x.amount||0)),unitCount:UNITS.length,updatedAt:Date.now()
+      approvedExpenses:approvedExpensesAfter,unitCount:UNITS.length,updatedAt:Date.now()
     },{merge:true});
     await b.commit();
     alert('تم إرجاع المصروف إلى قيد المراجعة، وتمت إزالته من المصروفات المعتمدة.');
