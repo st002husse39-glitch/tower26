@@ -1500,8 +1500,15 @@ const pjSort=(a,b)=>a.unit.localeCompare(b.unit,'en',{numeric:true});
 const pjPd=x=>x.status==='paid'||x.status==='done';
 const pjCalc=(o,p)=>{const dr=pjDr[o.id]||{};return(o.kind==='base'?o.items[0].p:0)+(p.addons||[]).reduce((s,a,i)=>s+a.p*(dr[i]||0),0)};
 const pjBuild=id=>{
-  const o=S.po.find(x=>x.id===id),p=S.pj.find(x=>x.id===o.pid),dr=pjDr[id]||{};
-  const items=(o.kind==='base'?[o.items[0]]:[]).concat((p.addons||[]).map((a,i)=>({n:a.n,p:a.p,q:dr[i]||0})).filter(i=>i.q>0));
+  const o=S.po.find(x=>x.id===id);
+  if(!o)return{items:[],total:0};
+  const p=S.pj.find(x=>x.id===o.pid);
+  if(!p)return{items:o.items||[],total:+o.total||0};
+  const saved=Object.fromEntries((p.addons||[]).map((a,i)=>[
+    i,((o.items||[]).find(x=>x.n===a.n)||{}).q||0
+  ]));
+  const dr=pjDr[id]||saved;
+  const items=(o.kind==='base'?(o.items||[]).slice(0,1):[]).concat((p.addons||[]).map((a,i)=>({n:a.n,p:a.p,q:dr[i]||0})).filter(i=>i.q>0));
   return{items,total:pjTot(items)};
 };
 
