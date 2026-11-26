@@ -49,7 +49,7 @@ nav button.on{color:var(--pr);font-weight:700}
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword,updatePassword,EmailAuthProvider,reauthenticateWithCredential} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,writeBatch,query,where,arrayUnion,increment} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,getDocs,writeBatch,query,where,arrayUnion,increment} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {getMessaging,getToken} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 const CFG={apiKey:"AIzaSyAR1WLDgsyxZmClQhXwWzyhk-YJDQvCV3Q",authDomain:"safwa-towers-b26.firebaseapp.com",projectId:"safwa-towers-b26",storageBucket:"safwa-towers-b26.firebasestorage.app",messagingSenderId:"39177856586",appId:"1:39177856586:web:40a41d72bc0947caa128b3"};
@@ -62,6 +62,8 @@ const $=s=>document.querySelector(s),root=$('#app');
 const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>Number(n||0).toLocaleString('ar-EG');
 const money2=n=>Number(n||0).toLocaleString('ar-EG',{minimumFractionDigits:2,maximumFractionDigits:2});
+const dateValue=v=>typeof v==='number'||(typeof v==='string'&&/^\d{4}-\d\d-\d\dT/.test(v))?new Date(v).toLocaleDateString('ar-EG'):(v||'');
+const timestampValue=v=>typeof v==='number'?v:(Date.parse(v)||0);
 const uidg=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const today=()=>new Date().toLocaleDateString('ar-EG');
 const month0=()=>new Date().toISOString().slice(0,7);
@@ -76,6 +78,43 @@ const wr=async f=>{try{await f()}catch(e){err(e)}};
 
 function notify(t,b){try{if(Notification.permission==='granted')new Notification(t,{body:b})}catch(e){}}
 let feedUnsubs=[],loadedFeeds=new Set();
+let receiptCleanupMonthInFlight='';
+function sixMonthsBefore(ts){
+  const d=new Date(ts),day=d.getDate();
+  d.setDate(1);d.setMonth(d.getMonth()-6);
+  d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));
+  return d.getTime();
+}
+async function cleanupOldReceipts(uid,profile){
+  if(!superadmin)return;
+  const month=month0();
+  if(profile.receiptCleanupMonth===month||receiptCleanupMonthInFlight===month)return;
+  receiptCleanupMonthInFlight=month;
+  try{
+    const cutoff=sixMonthsBefore(Date.now());
+    for(const name of ['dues','orders']){
+      const snap=await getDocs(query(collection(db,name),where('paidAt','<=',cutoff)));
+      const changes=snap.docs.flatMap(d=>{
+        const data=d.data();
+        if(typeof data.paidAt!=='number')return [];
+        const patch={paidAt:new Date(data.paidAt).toISOString()};
+        const accepted=name==='orders'?(data.status==='paid'||data.status==='done'):data.status==='paid';
+        if(accepted&&typeof data.receipt==='string'&&data.receipt.startsWith('data:image/'))patch.receipt='';
+        return [{ref:d.ref,patch}];
+      });
+      for(let i=0;i<changes.length;i+=400){
+        const batch=writeBatch(db);
+        changes.slice(i,i+400).forEach(x=>batch.update(x.ref,x.patch));
+        await batch.commit();
+      }
+    }
+    await updateDoc(doc(db,'users',uid),{receiptCleanupMonth:month});
+  }catch(e){
+    console.warn('Monthly receipt cleanup failed',e.code||e.message);
+  }finally{
+    receiptCleanupMonthInFlight='';
+  }
+}
 function clearDataFeeds(){
   feedUnsubs.forEach(f=>f());feedUnsubs=[];loadedFeeds.clear();ready={};
   S.ann=[];S.dues=[];S.req=[];S.polls=[];S.votes=[];S.users=[];S.expenses=[];S.set={};S.cashSummary={approvedExpenses:0};delete S.cashSummaryError;
@@ -150,6 +189,7 @@ admin=superadmin;
       clearDataFeeds();pjStop();pjUid=null;pjAdm=null;
     }
     me=profile;draw();
+    if(nextSuper)cleanupOldReceipts(u.uid,profile);
   },()=>{}));
 });
 function loginView(){root.innerHTML=`<h1>🏢 برج 26 — أبراج الصفوة</h1><div class="card"><input id="u" placeholder="اسم المستخدم" autocapitalize="none" autocomplete="username"><input id="p" type="password" placeholder="كلمة المرور" autocomplete="current-password"><button onclick="login()">دخول</button><div id="e" class="bad"></div></div>`}
@@ -264,7 +304,10 @@ function vDuesA(){
 window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
 window.clearDuesFilters=()=>{M=month0();window.duesFilter='all';window.duesUnitFilter='all';draw()};
 window.savePay=()=>wr(()=>setDoc(doc(db,'settings','pay'),{text:$('#pt').value}));
-window.setD=(id,s)=>wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:today()}:{status:s,receipt:'',note:''}));
+window.setD=(id,s)=>{
+  const d=S.dues.find(x=>x.id===id),hasReceipt=s==='paid'&&!!(d&&d.receipt);
+  return wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:hasReceipt?Date.now():today()}:{status:s,receipt:'',note:''}));
+};
 window.confirmCashDue=id=>{
   if(superadmin){
     return alert('السوبر يوزر لا يملك صلاحية تأكيد التحصيل النقدي');
@@ -773,9 +816,9 @@ function vCash(){
   const balance=income-approved;
   const expectedBalance=balance+pendingIncome-pending;
   const movements=[
-    ...incomeRows.map(x=>({ts:x.paidAt||x.createdAt||0,date:x.paidAt||x.month||'—',title:'رسوم '+(x.month||'شهرية'),detail:ulabel(x.unit),amount:+x.amount||0,kind:'income',status:'مدفوع'})),
+    ...incomeRows.map(x=>({ts:x.paidAt||x.createdAt||0,date:dateValue(x.paidAt)||x.month||'—',title:'رسوم '+(x.month||'شهرية'),detail:ulabel(x.unit),amount:+x.amount||0,kind:'income',status:'مدفوع'})),
     ...approvedRows.map(x=>({ts:x.reviewedAt||x.createdAt||0,date:x.spentAt||'—',title:x.title||'مصروف',detail:x.description||'',amount:+x.amount||0,kind:'expense',status:'معتمد'}))
-  ].sort((a,b)=>Number(b.ts||0)-Number(a.ts||0)).slice(0,50);
+  ].sort((a,b)=>timestampValue(b.ts)-timestampValue(a.ts)).slice(0,50);
   $('#v').innerHTML=`
     <div class="card"><div class="row"><h2>صندوق العمارة</h2><span class="ok">للسوبر يوزر</span></div><div class="mu">ملخص الإيرادات والمصروفات المعتمدة. المصروفات قيد المراجعة أو المرفوضة لا تخصم من الرصيد.</div><button class="s" onclick="rebuildCashSummary()">إعادة مزامنة إجمالي المصروفات المعتمدة</button></div>
     <div class="g">
@@ -1335,7 +1378,7 @@ function repData(){
     return{title:'تقرير التحصيل الشهري — '+rp.m,
       sum:[['إجمالي المطلوب',tot],['المحصّل',pd],['قيد المراجعة',sm(x=>x.status==='pending')],['غير مدفوع',sm(x=>x.status==='unpaid')],['نسبة التحصيل',(tot?Math.round(pd*100/tot):0)+'%']],
       head:['الوحدة','الساكن','المبلغ','الحالة','تاريخ السداد'],
-      rows:[...l].sort((a,b)=>a.unit.localeCompare(b.unit,'en',{numeric:true})).map(x=>[ulabel(x.unit),unitName(x.unit),x.amount,stL(x.status),x.paidAt||''])};
+      rows:[...l].sort((a,b)=>a.unit.localeCompare(b.unit,'en',{numeric:true})).map(x=>[ulabel(x.unit),unitName(x.unit),x.amount,stL(x.status),dateValue(x.paidAt)])};
   }
   if(rp.v==='arr'){
     const g={};
@@ -1351,7 +1394,7 @@ function repData(){
   return{title:'كشف حساب '+ulabel(rp.u)+(unitName(rp.u)?' — '+unitName(rp.u):'')+' — '+(rp.y==='all'?'كل الأشهر':rp.y),
     sum:[['إجمالي المطلوب',sm(()=>true)],['المدفوع',sm(x=>x.status==='paid')],['المتبقي',sm(x=>x.status!=='paid')]],
     head:['الشهر','المبلغ','الحالة','تاريخ السداد','البيان'],
-    rows:l.map(x=>[x.month,x.amount,stL(x.status),x.paidAt||'',x.desc||''])};
+    rows:l.map(x=>[x.month,x.amount,stL(x.status),dateValue(x.paidAt),x.desc||''])};
 }
 function repRender(){
   const v=document.getElementById('v');if(!v)return;
@@ -2027,7 +2070,7 @@ window.pjSet=(id,s)=>{
   }
 
   if(s==='paid'){
-    data.paidAt=today();
+    data.paidAt=o.receipt?Date.now():today();
   }
 
   if(s==='done'){
