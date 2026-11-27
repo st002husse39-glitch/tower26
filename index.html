@@ -307,10 +307,7 @@ function vDuesA(){
 window.M=M;Object.defineProperty(window,'M',{get:()=>M,set:v=>{M=v}});window.draw=draw;
 window.clearDuesFilters=()=>{M=month0();window.duesFilter='all';window.duesUnitFilter='all';draw()};
 window.savePay=()=>wr(()=>setDoc(doc(db,'settings','pay'),{text:$('#pt').value}));
-window.setD=(id,s)=>{
-  const d=S.dues.find(x=>x.id===id),hasReceipt=s==='paid'&&!!(d&&d.receipt);
-  return wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:hasReceipt?Date.now():today()}:{status:s,receipt:'',note:''}));
-};
+window.setD=(id,s)=>wr(()=>updateDoc(doc(db,'dues',id),s==='paid'?{status:s,paidAt:Date.now()}:{status:s,receipt:'',note:''}));
 window.confirmCashDue=id=>{
   if(superadmin){
     return alert('السوبر يوزر لا يملك صلاحية تأكيد التحصيل النقدي');
@@ -802,6 +799,40 @@ window.rebuildCashSummary=()=>{
   wr(async()=>{await setDoc(doc(db,'settings','cashSummary'),{approvedExpenses:total,unitCount:UNITS.length,updatedAt:Date.now()},{merge:true});alert('تمت مزامنة إجمالي المصروفات المعتمدة.');});
 };
 
+let cashReportMonth=month0();
+function cashPaidMonth(d){
+  const p=d.paidAt;
+  if(typeof p==='number'&&p>0)return new Date(p).toISOString().slice(0,7);
+  if(typeof p==='string'){
+    const iso=p.match(/^(\d{4}-\d\d)/);if(iso)return iso[1];
+    const parsed=Date.parse(p);if(Number.isFinite(parsed))return new Date(parsed).toISOString().slice(0,7);
+  }
+  return d.month||'';
+}
+function cashReportData(){
+  const feeMonth=S.dues.filter(x=>x.month===cashReportMonth);
+  const paidFees=S.dues.filter(x=>x.status==='paid'&&cashPaidMonth(x)===cashReportMonth);
+  const monthExpenses=S.expenses.filter(x=>(x.spentAt||'').slice(0,7)===cashReportMonth);
+  const approvedExpenses=monthExpenses.filter(x=>x.status==='approved');
+  const pendingFees=feeMonth.filter(x=>x.status==='pending');
+  const unpaidFees=feeMonth.filter(x=>x.status==='unpaid');
+  const pendingExpenses=monthExpenses.filter(x=>x.status==='pending');
+  const sum=xs=>xs.reduce((a,x)=>a+(+x.amount||0),0);
+  return{feeMonth,paidFees,monthExpenses,approvedExpenses,pendingFees,unpaidFees,pendingExpenses,
+    feeIn:sum(paidFees),expenseOut:sum(approvedExpenses),
+    duePending:sum(pendingFees),dueUnpaid:sum(unpaidFees),pendingOut:sum(pendingExpenses)};
+}
+window.changeCashReportMonth=v=>{cashReportMonth=v||month0();draw()};
+window.exportCashReport=()=>{
+  const r=cashReportData(),rows=[
+    ['تقرير مراجعة الصندوق','الشهر',cashReportMonth],['النوع','التاريخ','الوحدة/العنوان','البيان','المبلغ','الحالة','أثر على النقدية'],
+    ...r.paidFees.map(x=>['تحصيل رسوم',dateValue(x.paidAt)||x.month,ulabel(x.unit),x.desc||'رسوم شهرية',x.amount,'مدفوع','إيراد محصل']),
+    ...[...r.pendingFees,...r.unpaidFees].map(x=>['استحقاق رسوم',x.month,ulabel(x.unit),x.desc||'رسوم شهرية',x.amount,ST[x.status]?.[0]||x.status,'لا يؤثر']),
+    ...r.monthExpenses.map(x=>['مصروف',x.spentAt||'',x.title||'مصروف',x.description||'',x.amount,x.status==='approved'?'معتمد':x.status==='pending'?'قيد المراجعة':'مرفوض',x.status==='approved'?'مصروف معتمد':'لا يؤثر'])
+  ];
+  const csv='\ufeff'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='cash-review-'+cashReportMonth+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
 function vCash(){
   if(!superadmin){
     $('#v').innerHTML='<div class="card">لا تملك صلاحية عرض الصندوق</div>';
@@ -822,6 +853,11 @@ function vCash(){
     ...incomeRows.map(x=>({ts:x.paidAt||x.createdAt||0,date:dateValue(x.paidAt)||x.month||'—',title:'رسوم '+(x.month||'شهرية'),detail:ulabel(x.unit),amount:+x.amount||0,kind:'income',status:'مدفوع'})),
     ...approvedRows.map(x=>({ts:x.reviewedAt||x.createdAt||0,date:x.spentAt||'—',title:x.title||'مصروف',detail:x.description||'',amount:+x.amount||0,kind:'expense',status:'معتمد'}))
   ].sort((a,b)=>timestampValue(b.ts)-timestampValue(a.ts)).slice(0,50);
+  const report=cashReportData();
+  const reportRows=[
+    ...report.paidFees.map(x=>({ts:typeof x.paidAt==='number'?x.paidAt:Date.parse(x.paidAt)||0,date:dateValue(x.paidAt)||x.month||'—',title:'رسوم '+(x.month||'شهرية'),detail:ulabel(x.unit),amount:+x.amount||0,kind:'income',status:'مدفوع'})),
+    ...report.approvedExpenses.map(x=>({ts:Date.parse(x.spentAt||'')||0,date:x.spentAt||'—',title:x.title||'مصروف',detail:x.description||'',amount:+x.amount||0,kind:'expense',status:'معتمد'}))
+  ].sort((a,b)=>a.ts-b.ts);
   $('#v').innerHTML=`
     <div class="card"><div class="row"><h2>صندوق العمارة</h2><span class="ok">للسوبر يوزر</span></div><div class="mu">ملخص الإيرادات والمصروفات المعتمدة. المصروفات قيد المراجعة أو المرفوضة لا تخصم من الرصيد.</div><button class="s" onclick="rebuildCashSummary()">إعادة مزامنة إجمالي المصروفات المعتمدة</button></div>
     <div class="g">
@@ -834,6 +870,24 @@ function vCash(){
     </div>
     ${balance<0?`<div class="card bad">تحذير: المصروفات المعتمدة تتجاوز الإيرادات المسجلة للصندوق.</div>`:''}
     <div class="card"><div class="row"><b>ملخص الحالات</b><span class="mu">${rejectedRows.length} مرفوض · ${pendingIncomeRows.length} رسوم قيد المراجعة · ${pendingRows.length} مصروفات قيد المراجعة</span></div><div class="mu">الإيرادات قيد المراجعة والمصروفات المعلقة لا تؤثر على الرصيد حتى اعتمادها.</div></div>
+    <section class="section-card">
+      <div class="section-head"><div><div class="section-kicker">مراجعة من البيانات المحملة</div><b>التقرير الشهري للصندوق</b></div><div class="mu">لا ينفذ هذا التقرير استعلامات إضافية.</div></div>
+      <label class="field-label" for="cashReportMonth">الشهر</label>
+      <input id="cashReportMonth" type="month" value="${cashReportMonth}" onchange="changeCashReportMonth(this.value)">
+      <div class="due-stats">
+        <div class="due-stat"><b class="ok">${money(report.feeIn)}</b><span>رسوم محصلة</span></div>
+        <div class="due-stat"><b class="bad">${money(report.expenseOut)}</b><span>مصروفات معتمدة</span></div>
+        <div class="due-stat"><b class="${report.feeIn-report.expenseOut<0?'bad':'ok'}">${money(report.feeIn-report.expenseOut)}</b><span>صافي الحركة</span></div>
+      </div>
+      <div class="due-stats">
+        <div class="due-stat"><b class="wn">${report.pendingFees.length}</b><span>رسوم معلقة (${money(report.duePending)})</span></div>
+        <div class="due-stat"><b class="bad">${report.unpaidFees.length}</b><span>رسوم غير مسددة (${money(report.dueUnpaid)})</span></div>
+        <div class="due-stat"><b class="wn">${report.pendingExpenses.length}</b><span>مصروفات معلقة (${money(report.pendingOut)})</span></div>
+      </div>
+      <button class="s" onclick="exportCashReport()">تنزيل تفاصيل الشهر CSV</button>
+      <div class="mu">الإيرادات بحسب شهر الدفع عند توفره، والرسوم القديمة تستخدم شهر استحقاقها عند غياب تاريخ دفع قابل للقراءة. المصروفات بحسب تاريخ الصرف. الصافي حركة الشهر وليس رصيد الصندوق الختامي. لا يشمل التقرير تحصيلات المشاريع لأنها لا تُحمّل في تبويب الصندوق لتوفير القراءات.</div>
+      <div style="overflow-x:auto"><table class="rt"><tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th></tr>${reportRows.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.detail)}</td><td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td><td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td></tr>`).join('')||'<tr><td colspan="5" class="mu">لا توجد حركات معتمدة لهذا الشهر</td></tr>'}</table></div>
+    </section>
     <h2>حركة الصندوق</h2>
     <div class="card" style="overflow-x:auto"><table class="rt"><tr><th>التاريخ</th><th>البيان</th><th>التفاصيل</th><th>إيراد</th><th>مصروف</th><th>الحالة</th></tr>${movements.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.detail)}</td><td class="ok">${x.kind==='income'?money(x.amount)+' جنيه':'—'}</td><td class="bad">${x.kind==='expense'?money(x.amount)+' جنيه':'—'}</td><td>${x.status}</td></tr>`).join('')||`<tr><td colspan="6" class="mu">لا توجد حركة مالية مسجلة</td></tr>`}</table></div>
   `;
