@@ -466,12 +466,12 @@ window.setR=(id,s)=>wr(()=>updateDoc(doc(db,'requests',id),{status:s}));
 
 const pollEndMs=p=>p.endsAt&&typeof p.endsAt.toMillis==='function'?p.endsAt.toMillis():null;
 const pollIsActive=p=>p.open===true&&(pollEndMs(p)===null||Date.now()<pollEndMs(p));
-const pollDisagreeIndex=p=>p.options.findIndex(o=>String(o).trim().replace(/\s+/g,' ')==='لا أوافق');
+const pollDisagreeIndex=p=>p.options.findIndex(o=>['لا اوافق','غير موافق'].includes(String(o).trim().replace(/\s+/g,' ').replace(/[أإآ]/g,'ا')));
 const pollWordCount=s=>String(s||'').trim().split(/\s+/u).filter(Boolean).length;
 const pollEndLabel=p=>{const t=p.endsAt&&typeof p.endsAt.toDate==='function'?p.endsAt.toDate():null;return t?t.toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}):'لم يحدد؛ الإغلاق يدوي';};
 const pollEndInput=p=>{const t=p.endsAt&&typeof p.endsAt.toDate==='function'?p.endsAt.toDate():null;if(!t)return '';const local=new Date(t.getTime()-t.getTimezoneOffset()*60000);return local.toISOString().slice(0,16)};
 let voteDrafts={};
-window.setVoteDraft=(id,key,value)=>{voteDrafts[id]=voteDrafts[id]||{};voteDrafts[id][key]=value};
+window.setVoteDraft=(id,key,value)=>{voteDrafts[id]=voteDrafts[id]||{};voteDrafts[id][key]=value;if(key==='choice')draw()};
 function vVote(){
   const p=[...S.polls].sort((a,b)=>b.ts-a.ts),u=auth.currentUser.uid;
   $('#v').innerHTML=(superadmin?`<div class="card"><b>إنشاء تصويت</b><input id="q" placeholder="موضوع التصويت"><input id="o" placeholder="الخيارات مفصولة بفاصلة: موافق، غير موافق"><label class="mu" for="pollEndNew">موعد إغلاق التصويت</label><input id="pollEndNew" type="datetime-local"><button onclick="addPoll()">إنشاء التصويت</button></div>`:'')+(p.map(x=>{
