@@ -49,7 +49,7 @@ nav button.on{color:var(--pr);font-weight:700}
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword,updatePassword,EmailAuthProvider,reauthenticateWithCredential} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,getDocs,writeBatch,query,where,arrayUnion,increment} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,collection,doc,onSnapshot,setDoc,updateDoc,deleteDoc,getDocs,writeBatch,query,where,arrayUnion,increment,Timestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {getMessaging,getToken} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 const CFG={apiKey:"AIzaSyAR1WLDgsyxZmClQhXwWzyhk-YJDQvCV3Q",authDomain:"safwa-towers-b26.firebaseapp.com",projectId:"safwa-towers-b26",storageBucket:"safwa-towers-b26.firebasestorage.app",messagingSenderId:"39177856586",appId:"1:39177856586:web:40a41d72bc0947caa128b3"};
@@ -72,7 +72,7 @@ const UNITS=[...Array.from({length:8},(_,i)=>({id:'S'+(i+1),label:'محل '+(i+1
 const ulabel=id=>(UNITS.find(u=>u.id===id)||{label:id||'—'}).label;
 const ST={unpaid:['غير مدفوع','bad'],pending:['قيد المراجعة','wn'],paid:['مدفوع','ok']};
 const RS={new:'جديد',prog:'قيد التنفيذ',done:'تم'};
-let me=null,admin=false,superadmin=false,tab='ann',M=month0(),duesAddMonth=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],users:[],expenses:[],set:{},cashSummary:{approvedExpenses:0}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
+let me=null,admin=false,superadmin=false,tab='ann',M=month0(),duesAddMonth=month0(),S={ann:[],dues:[],req:[],polls:[],votes:[],pollFeedback:[],myPollFeedback:[],users:[],expenses:[],set:{},cashSummary:{approvedExpenses:0}},unsubs=[],seen=+(localStorage.getItem('seen')||0),ready={};
 const err=e=>alert('تعذر تنفيذ العملية: '+(e.code||e.message));
 const wr=async f=>{try{await f()}catch(e){err(e)}};
 
@@ -120,7 +120,7 @@ async function cleanupOldReceipts(uid,profile){
 }
 function clearDataFeeds(){
   feedUnsubs.forEach(f=>f());feedUnsubs=[];loadedFeeds.clear();ready={};
-  S.ann=[];S.dues=[];S.req=[];S.polls=[];S.votes=[];S.users=[];S.expenses=[];S.set={};S.cashSummary={approvedExpenses:0};delete S.cashSummaryError;
+  S.ann=[];S.dues=[];S.req=[];S.polls=[];S.votes=[];S.pollFeedback=[];S.myPollFeedback=[];S.users=[];S.expenses=[];S.set={};S.cashSummary={approvedExpenses:0};delete S.cashSummaryError;
 }
 function sub(key,q,onNew){
   if(loadedFeeds.has(key))return;
@@ -161,6 +161,8 @@ function startData(){
     else sub('req',query(c('requests'),where('uid','==',auth.currentUser.uid)),x=>{if(x.type==='modified')notify('🔧 تحديث الطلب',x.doc.data().title+': '+RS[x.doc.data().status])});
   }else if(tab==='vote'){
     sub('polls',c('polls'));sub('votes',c('votes'));
+    if(superadmin)sub('pollFeedback',c('pollFeedback'));
+    else sub('myPollFeedback',query(c('pollFeedback'),where('uid','==',auth.currentUser.uid)));
   }else if(tab==='exp'&&admin){
     sub('expenses',superadmin?c('expenses'):query(c('expenses'),where('createdBy','==',auth.currentUser.uid)));
   }else if(tab==='cash'&&superadmin){
@@ -462,15 +464,50 @@ function vReq(){
 window.addReq=()=>{const t=$('#t').value.trim();if(t)wr(()=>setDoc(doc(db,'requests',uidg()),{title:t,body:$('#b').value,uid:auth.currentUser.uid,unit:me.unit,status:'new',date:today(),ts:Date.now()}))};
 window.setR=(id,s)=>wr(()=>updateDoc(doc(db,'requests',id),{status:s}));
 
+const pollEndMs=p=>p.endsAt&&typeof p.endsAt.toMillis==='function'?p.endsAt.toMillis():null;
+const pollIsActive=p=>p.open===true&&(pollEndMs(p)===null||Date.now()<pollEndMs(p));
+const pollEndLabel=p=>{const t=p.endsAt&&typeof p.endsAt.toDate==='function'?p.endsAt.toDate():null;return t?t.toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}):'لم يحدد؛ الإغلاق يدوي';};
+const pollEndInput=p=>{const t=p.endsAt&&typeof p.endsAt.toDate==='function'?p.endsAt.toDate():null;if(!t)return '';const local=new Date(t.getTime()-t.getTimezoneOffset()*60000);return local.toISOString().slice(0,16)};
+let voteDrafts={};
+window.setVoteDraft=(id,key,value)=>{voteDrafts[id]=voteDrafts[id]||{};voteDrafts[id][key]=value};
 function vVote(){
   const p=[...S.polls].sort((a,b)=>b.ts-a.ts),u=auth.currentUser.uid;
-  $('#v').innerHTML=(admin?`<div class="card"><input id="q" placeholder="موضوع التصويت"><input id="o" placeholder="الخيارات مفصولة بفاصلة: موافق، غير موافق"><button onclick="addPoll()">إنشاء</button></div>`:'')+(p.map(x=>{
-    const vs=S.votes.filter(v=>v.poll===x.id),mine=vs.find(v=>v.uid===u);
-    return `<div class="card"><div class="row"><b>${esc(x.q)}</b>${admin?`<span><button class="s" onclick="togP('${x.id}')">${x.open?'إغلاق':'فتح'}</button><button class="d" onclick="del('polls','${x.id}')">✕</button></span>`:''}</div>${x.options.map((o,i)=>{const n=vs.filter(v=>v.choice===i).length,pc=vs.length?Math.round(n*100/vs.length):0;return `<div style="margin:8px 0"><div class="row"><span>${esc(o)} ${mine&&mine.choice===i?'✓':''}</span><span class="mu">${n} (${pc}%)</span></div><div class="bar"><i style="width:${pc}%"></i></div>${x.open&&!admin&&!mine?`<button class="s" onclick="vote('${x.id}',${i})">صوّت</button>`:''}</div>`}).join('')}<div class="mu">${x.open?'مفتوح':'مغلق'} · ${vs.length} صوت${mine?' · تم تصويتك':''}</div></div>`}).join('')||'<div class="mu">لا توجد تصويتات</div>');
+  $('#v').innerHTML=(superadmin?`<div class="card"><b>إنشاء تصويت</b><input id="q" placeholder="موضوع التصويت"><input id="o" placeholder="الخيارات مفصولة بفاصلة: موافق، غير موافق"><label class="mu" for="pollEndNew">موعد إغلاق التصويت</label><input id="pollEndNew" type="datetime-local"><button onclick="addPoll()">إنشاء التصويت</button></div>`:'')+(p.map(x=>{
+    const vs=S.votes.filter(v=>v.poll===x.id),mine=vs.find(v=>v.uid===u),active=pollIsActive(x);
+    const myNote=S.myPollFeedback.find(f=>f.poll===x.id),draft=voteDrafts[x.id]||{};
+    const selected=draft.choice!==undefined?draft.choice:(mine?String(mine.choice):'');
+    const note=draft.note!==undefined?draft.note:(myNote?.note||'');
+    const notes=superadmin?S.pollFeedback.filter(f=>f.poll===x.id&&String(f.note||'').trim()):[];
+    return `<div class="card"><div class="row"><b>${esc(x.q)}</b>${superadmin?`<span><button class="s" onclick="togP('${x.id}')">${x.open?'إغلاق يدوي':'إعادة فتح'}</button><button class="d" onclick="del('polls','${x.id}')">✕</button></span>`:''}</div><div class="mu">موعد الإغلاق: ${esc(pollEndLabel(x))}${x.open&&pollEndMs(x)!==null&&Date.now()>=pollEndMs(x)?' · انتهى الوقت':''}</div>${x.options.map((o,i)=>{const n=vs.filter(v=>v.choice===i).length,pc=vs.length?Math.round(n*100/vs.length):0;return `<div style="margin:8px 0"><div class="row"><span>${esc(o)} ${mine&&mine.choice===i?'✓':''}</span><span class="mu">${n} (${pc}%)</span></div><div class="bar"><i style="width:${pc}%"></i></div></div>`}).join('')}${!superadmin&&active?`<div class="card"><label class="mu" for="voteChoice-${x.id}">${mine?'يمكنك تعديل اختيارك حتى إغلاق التصويت':'اختر تصويتك'}</label><select id="voteChoice-${x.id}" onchange="setVoteDraft('${x.id}','choice',this.value)"><option value="">اختر أحد الخيارات</option>${x.options.map((o,i)=>`<option value="${i}" ${String(selected)===String(i)?'selected':''}>${esc(o)}</option>`).join('')}</select><label class="mu" for="voteNote-${x.id}">ملاحظة أو اعتراض (اختياري)</label><textarea id="voteNote-${x.id}" rows="2" maxlength="2000" placeholder="اكتب ملاحظتك أو سبب اعتراضك إن وجد" oninput="setVoteDraft('${x.id}','note',this.value)">${esc(note)}</textarea><button class="s" onclick="vote('${x.id}')">${mine?'حفظ التعديل':'إرسال التصويت'}</button></div>`:''}<div class="mu">${active?'مفتوح للتصويت':x.open?'انتهى الموعد':'مغلق يدويًا'} · ${vs.length} صوت${mine?' · تم تسجيل تصويتك':''}</div>${superadmin?`<div class="card"><label class="mu" for="pollEnd-${x.id}">تعديل موعد الإغلاق</label><input id="pollEnd-${x.id}" type="datetime-local" value="${pollEndInput(x)}"><button class="s" onclick="savePollEnd('${x.id}')">حفظ موعد الإغلاق</button><b>ملاحظات السكان (${notes.length})</b>${notes.map(f=>`<div class="card"><b>${esc(ulabel(f.unit))}</b><div>${esc(f.note)}</div></div>`).join('')||'<div class="mu">لا توجد ملاحظات مسجلة</div>'}</div>`:''}</div>`}).join('')||'<div class="mu">لا توجد تصويتات</div>');
 }
-window.addPoll=()=>{const q=$('#q').value.trim(),o=$('#o').value.split(/[,،]/).map(s=>s.trim()).filter(Boolean);if(!q||o.length<2)return alert('أدخل سؤالاً وخيارين على الأقل');wr(()=>setDoc(doc(db,'polls',uidg()),{q,options:o,open:true,ts:Date.now()}))};
-window.togP=id=>wr(()=>updateDoc(doc(db,'polls',id),{open:!S.polls.find(p=>p.id===id).open}));
-window.vote=(p,i)=>wr(()=>setDoc(doc(db,'votes',p+'_'+auth.currentUser.uid),{poll:p,uid:auth.currentUser.uid,unit:me.unit,choice:i}));
+window.addPoll=()=>{
+  if(!superadmin)return alert('إنشاء التصويت متاح للسوبر أدمن فقط');
+  const q=$('#q').value.trim(),o=$('#o').value.split(/[,،]/).map(s=>s.trim()).filter(Boolean),endValue=$('#pollEndNew').value,end=new Date(endValue);
+  const options=[...new Set(o)];
+  if(!q||options.length<2)return alert('أدخل موضوع التصويت وخيارين مختلفين على الأقل');
+  if(!endValue||!Number.isFinite(end.getTime())||end.getTime()<=Date.now())return alert('أدخل موعد إغلاق صحيحًا في المستقبل');
+  wr(()=>setDoc(doc(db,'polls',uidg()),{q,options,open:true,ts:Date.now(),endsAt:Timestamp.fromDate(end)}));
+};
+window.savePollEnd=(id)=>{
+  if(!superadmin)return alert('تعديل موعد الإغلاق متاح للسوبر أدمن فقط');
+  const value=$('#pollEnd-'+id)?.value,end=new Date(value);
+  if(!value||!Number.isFinite(end.getTime()))return alert('أدخل تاريخًا ووقتًا صحيحين');
+  return wr(()=>updateDoc(doc(db,'polls',id),{endsAt:Timestamp.fromDate(end)}));
+};
+window.togP=id=>{if(!superadmin)return alert('إدارة التصويت متاحة للسوبر أدمن فقط');const p=S.polls.find(x=>x.id===id);if(p)wr(()=>updateDoc(doc(db,'polls',id),{open:!p.open}))};
+window.vote=async(pollId)=>{
+  if(!ready.polls||!ready.votes||!ready.myPollFeedback)return alert('جارٍ تحميل بيانات التصويت؛ حاول بعد لحظة');
+  const poll=S.polls.find(x=>x.id===pollId),draft=voteDrafts[pollId]||{},mine=S.votes.find(v=>v.poll===pollId&&v.uid===auth.currentUser.uid);
+  const raw=draft.choice!==undefined?draft.choice:(mine?String(mine.choice):''),choice=Number(raw),note=String(draft.note!==undefined?draft.note:(S.myPollFeedback.find(f=>f.poll===pollId)?.note||'')).trim();
+  if(!poll||!pollIsActive(poll))return alert('انتهى التصويت أو قام السوبر أدمن بإغلاقه');
+  if(raw===''||!Number.isInteger(choice)||choice<0||choice>=poll.options.length)return alert('اختر أحد خيارات التصويت');
+  const uid=auth.currentUser.uid,voteRef=doc(db,'votes',pollId+'_'+uid),feedbackRef=doc(db,'pollFeedback',pollId+'_'+uid),batch=writeBatch(db);
+  const voteData={poll:pollId,uid,unit:me.unit,choice};
+  if(mine)batch.update(voteRef,{choice});else batch.set(voteRef,voteData);
+  const oldNote=S.myPollFeedback.find(f=>f.poll===pollId);
+  if(note)batch.set(feedbackRef,{poll:pollId,uid,unit:me.unit,note});else if(oldNote)batch.delete(feedbackRef);
+  try{await batch.commit();delete voteDrafts[pollId];alert(mine?'تم حفظ تعديل تصويتك':'تم تسجيل تصويتك')}catch(e){err(e)}
+};
 
 function vRes(){
   const residentUsers=S.users.filter(u=>u.role==='user');
